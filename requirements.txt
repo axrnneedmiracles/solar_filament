@@ -13,3 +13,4 @@ matplotlib
 scipy
 scikit-learn
 reportlab
+streamlit
