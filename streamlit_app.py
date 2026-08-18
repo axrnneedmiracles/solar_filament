@@ -8,7 +8,7 @@ import streamlit as st
 import numpy as np
 import cv2
 import PIL.Image
-from inference.predict import SingleImagePredictor
+from inference.predict import SolarFilamentPredictor
 
 st.set_page_config(
     page_title="Solar Filament Intelligence System",
@@ -21,7 +21,7 @@ st.markdown("### Deep Learning (Mask2Former / U-Net) + Classical Computer Vision
 
 @st.cache_resource
 def get_predictor():
-    return SingleImagePredictor(config_path="configs/default_config.yaml")
+    return SolarFilamentPredictor(config_path="configs/default_config.yaml")
 
 predictor = get_predictor()
 

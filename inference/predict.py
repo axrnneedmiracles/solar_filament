@@ -192,3 +192,8 @@ def create_overlay(image: np.ndarray, mask: np.ndarray,
     cv2.drawContours(result, contours, -1, (0, 255, 255), 1)
 
     return result
+
+
+# Backward-compatible alias
+SingleImagePredictor = SolarFilamentPredictor
+
