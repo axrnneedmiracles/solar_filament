@@ -41,7 +41,6 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload H-alpha Solar Image", type=["jpeg", "jpg", "png", "fts", "fits"])
 
 if uploaded_file is not None:
-    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=uint8) if False else None
     image = PIL.Image.open(uploaded_file).convert('RGB')
     image_np = np.array(image)
 
