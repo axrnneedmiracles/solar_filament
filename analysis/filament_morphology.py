@@ -116,3 +116,52 @@ def draw_morphology_overlay(image: np.ndarray, mask: np.ndarray,
         cv2.line(vis, (cx - dx, cy - dy), (cx + dx, cy + dy), (255, 255, 0), 1)
 
     return vis
+
+
+def export_morphology_csv(filaments: List[Dict], output_path: str):
+    """Export filament morphology metrics to a CSV spreadsheet."""
+    import csv
+    with open(output_path, mode='w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "Filament_ID", "Area_px", "Area_km2", "Perimeter_px",
+            "Length_skel_px", "Length_km", "Avg_Width_px",
+            "Orientation_deg", "Centroid_X", "Centroid_Y",
+            "BBox_X", "BBox_Y", "BBox_W", "BBox_H", "Confidence"
+        ])
+        for comp in filaments:
+            bbox = comp.get('bbox', {})
+            cent = comp.get('centroid', {})
+            area_px = comp.get('area_px', 0)
+            length_px = comp.get('skeleton_length_px', 0)
+
+            # Astronomical scaling: 435.0 km / pixel
+            km_per_px = comp.get('km_per_px', 435.0)
+            area_km2 = area_px * (km_per_px ** 2)
+            length_km = length_px * km_per_px
+
+            writer.writerow([
+                comp.get('filament_id', 0),
+                round(area_px, 2),
+                round(area_km2, 2),
+                round(comp.get('perimeter_px', 0), 2),
+                round(length_px, 2),
+                round(length_km, 2),
+                round(comp.get('avg_width_px', 0), 2),
+                round(comp.get('orientation_deg', 0), 2),
+                round(cent.get('x', 0), 2),
+                round(cent.get('y', 0), 2),
+                bbox.get('x', 0),
+                bbox.get('y', 0),
+                bbox.get('width', 0),
+                bbox.get('height', 0),
+                round(comp.get('confidence', 0), 3)
+            ])
+
+
+def export_morphology_json(filaments: List[Dict], output_path: str):
+    """Export filament morphology metrics to a structured JSON file."""
+    import json
+    with open(output_path, mode='w', encoding='utf-8') as f:
+        json.dump(filaments, f, indent=2)
+

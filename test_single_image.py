@@ -123,6 +123,9 @@ def run_pipeline(image_path: str, output_dir: str = "outputs/predictions", metho
     out_report_path = os.path.join(output_dir, f"{base_name}_morphology.txt")
     out_grid_path = os.path.join(output_dir, f"{base_name}_comparison_grid.png")
 
+    out_csv_path = os.path.join(output_dir, f"{base_name}_morphology.csv")
+    out_json_path = os.path.join(output_dir, f"{base_name}_morphology.json")
+
     cv2.imwrite(out_overlay_path, annotated_overlay)
     cv2.imwrite(out_mask_path, (final_mask * 255).astype(np.uint8))
 
@@ -139,6 +142,10 @@ def run_pipeline(image_path: str, output_dir: str = "outputs/predictions", metho
 
     with open(out_report_path, "w") as f:
         f.write(report_text)
+
+    from analysis.filament_morphology import export_morphology_csv, export_morphology_json
+    export_morphology_csv(filaments, out_csv_path)
+    export_morphology_json(filaments, out_json_path)
 
     print("-" * 65)
     print(f"Generated Visual Results in [{output_dir}]:")
