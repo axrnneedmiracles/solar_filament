@@ -22,12 +22,14 @@ training:
   lr: 0.0001
   weight_decay: 0.00001
   scheduler: "cosine"
-  patience: 10
+  patience: 25
   amp: true
   gradient_clip: 1.0
 
 model:
   name: "mask2former"
+  backbone: "resnet34"
+  pretrained: true
   in_channels: 1
   num_queries: 20
   hidden_dim: 128

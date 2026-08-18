@@ -278,11 +278,15 @@ def train(config_path: str = None):
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_dice': best_val_dice,
+                'val_iou': val_metrics['iou'],
+                'val_loss': val_metrics['loss'],
+                'val_precision': val_metrics['precision'],
+                'val_recall': val_metrics['recall'],
                 'val_metrics': val_metrics,
                 'config': config,
             }
             torch.save(checkpoint, os.path.join(checkpoint_dir, 'best_model.pth'))
-            print(f"  * [SAVED] New best model saved (Val Dice: {best_val_dice:.4f})")
+            print(f"  * [SAVED] New best model saved (Val Dice: {best_val_dice:.4f} | IoU: {val_metrics['iou']:.4f} | Prec: {val_metrics['precision']:.4f} | Rec: {val_metrics['recall']:.4f})")
         else:
             patience_counter += 1
 

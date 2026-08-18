@@ -1,14 +1,11 @@
 """
 Mask2Former / Masked-Attention Transformer for Solar Filament Segmentation
 ==========================================================================
-Implements Masked-attention Mask Transformer (Mask2Former) for solar filament
-detection and instance/semantic segmentation.
-
-Key Advantages for Solar Imagery:
-1. Masked Cross-Attention restricts attention to the foreground filament mask,
-   completely ignoring solar chromospheric background noise.
-2. High-resolution pixel decoder preserves fine, thread-like filament boundaries.
-3. Multi-scale feature extraction across spatial resolutions.
+Implements Masked-attention Mask Transformer (Mask2Former) with support for:
+1. Pretrained ResNet-34 Feature Pyramid Backbone (ImageNet pretrained weights)
+2. Custom multi-scale convolutional encoder (from scratch)
+3. Masked Cross-Attention Transformer Decoder (focuses strictly on filament regions)
+4. High-resolution pixel mask feature generator
 """
 
 import math
@@ -16,16 +13,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import List, Tuple, Dict, Optional
+import torchvision.models as models
 
 
-class MultiScalePixelDecoder(nn.Module):
+class CustomPixelDecoder(nn.Module):
     """
-    Feature Pyramid Pixel Decoder that extracts multi-scale feature maps
-    at 1/4, 1/8, 1/16, and 1/32 resolutions.
+    Custom 5-stage convolutional encoder with FPN.
     """
     def __init__(self, in_channels: int = 1, hidden_dim: int = 128):
         super().__init__()
-        # Multi-scale convolutional encoder
         self.conv_c1 = nn.Sequential(
             nn.Conv2d(in_channels, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
@@ -33,7 +29,7 @@ class MultiScalePixelDecoder(nn.Module):
             nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
             nn.GELU(),
-        ) # 1/1 (512x512)
+        )  # 1/1 (512x512)
 
         self.conv_c2 = nn.Sequential(
             nn.MaxPool2d(2, 2),
@@ -43,7 +39,7 @@ class MultiScalePixelDecoder(nn.Module):
             nn.Conv2d(64, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.GELU(),
-        ) # 1/2 (256x256)
+        )  # 1/2 (256x256)
 
         self.conv_c3 = nn.Sequential(
             nn.MaxPool2d(2, 2),
@@ -53,7 +49,7 @@ class MultiScalePixelDecoder(nn.Module):
             nn.Conv2d(128, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.GELU(),
-        ) # 1/4 (128x128)
+        )  # 1/4 (128x128)
 
         self.conv_c4 = nn.Sequential(
             nn.MaxPool2d(2, 2),
@@ -63,21 +59,19 @@ class MultiScalePixelDecoder(nn.Module):
             nn.Conv2d(256, 256, kernel_size=3, padding=1),
             nn.BatchNorm2d(256),
             nn.GELU(),
-        ) # 1/8 (64x64)
+        )  # 1/8 (64x64)
 
         self.conv_c5 = nn.Sequential(
             nn.MaxPool2d(2, 2),
             nn.Conv2d(256, hidden_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(hidden_dim),
             nn.GELU(),
-        ) # 1/16 (32x32)
+        )  # 1/16 (32x32)
 
-        # Lateral 1x1 convs to project to hidden_dim
         self.lateral_c4 = nn.Conv2d(256, hidden_dim, 1)
         self.lateral_c3 = nn.Conv2d(128, hidden_dim, 1)
         self.lateral_c2 = nn.Conv2d(64, hidden_dim, 1)
 
-        # High-resolution mask feature generator
         self.mask_features = nn.Sequential(
             nn.Conv2d(hidden_dim + 32, hidden_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(hidden_dim),
@@ -94,17 +88,98 @@ class MultiScalePixelDecoder(nn.Module):
         c4 = self.conv_c4(c3)      # [B, 256, 64, 64]
         c5 = self.conv_c5(c4)      # [B, 128, 32, 32]
 
-        # Top-down FPN pathway
         p5 = c5
         p4 = self.lateral_c4(c4) + F.interpolate(p5, size=c4.shape[2:], mode='bilinear', align_corners=False)
         p3 = self.lateral_c3(c3) + F.interpolate(p4, size=c3.shape[2:], mode='bilinear', align_corners=False)
         p2 = self.lateral_c2(c2) + F.interpolate(p3, size=c2.shape[2:], mode='bilinear', align_corners=False)
 
-        # Generate per-pixel mask features at original resolution
         p1 = F.interpolate(p2, size=c1.shape[2:], mode='bilinear', align_corners=False)
-        mask_feat = self.mask_features(torch.cat([p1, c1], dim=1)) # [B, hidden_dim, 512, 512]
+        mask_feat = self.mask_features(torch.cat([p1, c1], dim=1))  # [B, hidden_dim, 512, 512]
 
         return [p3, p4, p5], mask_feat
+
+
+class ResNet34PixelDecoder(nn.Module):
+    """
+    Feature Pyramid Pixel Decoder powered by ImageNet-pretrained ResNet-34.
+    """
+    def __init__(self, in_channels: int = 1, hidden_dim: int = 128, pretrained: bool = True):
+        super().__init__()
+        weights = models.ResNet34_Weights.DEFAULT if pretrained else None
+        backbone = models.resnet34(weights=weights)
+
+        # Adapt input conv layer
+        if in_channels == 1:
+            orig_w = backbone.conv1.weight.data
+            new_conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+            new_conv1.weight.data = orig_w.mean(dim=1, keepdim=True)
+            self.conv1 = new_conv1
+        elif in_channels == 3:
+            self.conv1 = backbone.conv1
+        else:
+            self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+
+        self.bn1 = backbone.bn1
+        self.relu = backbone.relu
+        self.maxpool = backbone.maxpool
+
+        self.layer1 = backbone.layer1  # [B, 64, 128, 128]
+        self.layer2 = backbone.layer2  # [B, 128, 64, 64]
+        self.layer3 = backbone.layer3  # [B, 256, 32, 32]
+        self.layer4 = backbone.layer4  # [B, 512, 16, 16]
+
+        # High-res stem for retaining original 512x512 sub-pixel spatial fidelity
+        self.stem_c1 = nn.Sequential(
+            nn.Conv2d(in_channels, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.GELU(),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.GELU(),
+        )
+
+        # Lateral 1x1 projection convs
+        self.lateral_c5 = nn.Conv2d(512, hidden_dim, 1)
+        self.lateral_c4 = nn.Conv2d(256, hidden_dim, 1)
+        self.lateral_c3 = nn.Conv2d(128, hidden_dim, 1)
+        self.lateral_c2 = nn.Conv2d(64, hidden_dim, 1)
+
+        # High-resolution mask feature generator
+        self.mask_features = nn.Sequential(
+            nn.Conv2d(hidden_dim + 32, hidden_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.GELU(),
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.GELU(),
+        )
+
+    def forward(self, x: torch.Tensor) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        c1 = self.stem_c1(x)  # [B, 32, 512, 512]
+
+        x_stem = self.relu(self.bn1(self.conv1(x)))  # [B, 64, 256, 256]
+        x_mp = self.maxpool(x_stem)                  # [B, 64, 128, 128]
+
+        c2 = self.layer1(x_mp)  # [B, 64, 128, 128]  (1/4 scale)
+        c3 = self.layer2(c2)    # [B, 128, 64, 64]   (1/8 scale)
+        c4 = self.layer3(c3)    # [B, 256, 32, 32]   (1/16 scale)
+        c5 = self.layer4(c4)    # [B, 512, 16, 16]   (1/32 scale)
+
+        # Top-down FPN pathway
+        p5 = self.lateral_c5(c5)
+        p4 = self.lateral_c4(c4) + F.interpolate(p5, size=c4.shape[2:], mode='bilinear', align_corners=False)
+        p3 = self.lateral_c3(c3) + F.interpolate(p4, size=c3.shape[2:], mode='bilinear', align_corners=False)
+        p2 = self.lateral_c2(c2) + F.interpolate(p3, size=c2.shape[2:], mode='bilinear', align_corners=False)
+
+        # Mask features at full 1/1 resolution
+        p1 = F.interpolate(p2, size=c1.shape[2:], mode='bilinear', align_corners=False)
+        mask_feat = self.mask_features(torch.cat([p1, c1], dim=1))  # [B, hidden_dim, 512, 512]
+
+        return [p2, p3, p4], mask_feat
+
+
+# Backwards compatibility alias
+MultiScalePixelDecoder = CustomPixelDecoder
 
 
 class MaskedCrossAttention(nn.Module):
@@ -131,11 +206,9 @@ class MaskedCrossAttention(nn.Module):
         k = self.k_proj(memory).view(B, S, self.nheads, self.head_dim).transpose(1, 2)
         v = self.v_proj(memory).view(B, S, self.nheads, self.head_dim).transpose(1, 2)
 
-        # [B, nheads, N, S]
         attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
 
         if attn_mask is not None:
-            # Masked attention: -inf outside the predicted filament region
             attn = attn + attn_mask
 
         attn_weights = F.softmax(attn, dim=-1)
@@ -148,17 +221,14 @@ class Mask2FormerDecoderLayer(nn.Module):
     """Single layer of Mask2Former Transformer Decoder."""
     def __init__(self, hidden_dim: int = 128, nheads: int = 8, dim_feedforward: int = 512, dropout: float = 0.1):
         super().__init__()
-        # 1. Masked Cross-Attention
         self.cross_attn = MaskedCrossAttention(hidden_dim, nheads)
         self.norm1 = nn.LayerNorm(hidden_dim)
         self.dropout1 = nn.Dropout(dropout)
 
-        # 2. Self-Attention between filament queries
         self.self_attn = nn.MultiheadAttention(hidden_dim, nheads, dropout=dropout, batch_first=True)
         self.norm2 = nn.LayerNorm(hidden_dim)
         self.dropout2 = nn.Dropout(dropout)
 
-        # 3. FFN
         self.linear1 = nn.Linear(hidden_dim, dim_feedforward)
         self.linear2 = nn.Linear(dim_feedforward, hidden_dim)
         self.norm3 = nn.LayerNorm(hidden_dim)
@@ -166,18 +236,14 @@ class Mask2FormerDecoderLayer(nn.Module):
         self.activation = nn.GELU()
 
     def forward(self, queries: torch.Tensor, memory: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        # Cross-Attention with Mask
         q2 = self.cross_attn(queries, memory, attn_mask)
         queries = self.norm1(queries + self.dropout1(q2))
 
-        # Self-Attention
         q3, _ = self.self_attn(queries, queries, queries)
         queries = self.norm2(queries + self.dropout2(q3))
 
-        # FFN
         q4 = self.linear2(self.dropout3(self.activation(self.linear1(queries))))
         queries = self.norm3(queries + self.dropout3(q4))
-
         return queries
 
 
@@ -188,17 +254,23 @@ class Mask2Former(nn.Module):
     def __init__(
         self,
         in_channels: int = 1,
-        num_queries: int = 20, # Up to 20 filament instances per solar observation
+        num_queries: int = 20,
         hidden_dim: int = 128,
         num_decoder_layers: int = 3,
         nheads: int = 8,
+        backbone: str = 'resnet34',
+        pretrained: bool = True,
     ):
         super().__init__()
         self.num_queries = num_queries
         self.hidden_dim = hidden_dim
+        self.backbone_name = backbone
 
-        # Pixel Decoder (Feature Pyramid)
-        self.pixel_decoder = MultiScalePixelDecoder(in_channels, hidden_dim)
+        # Select Pixel Decoder / Backbone
+        if backbone.lower() in ('resnet34', 'resnet-34', 'resnet_34'):
+            self.pixel_decoder = ResNet34PixelDecoder(in_channels, hidden_dim, pretrained=pretrained)
+        else:
+            self.pixel_decoder = CustomPixelDecoder(in_channels, hidden_dim)
 
         # Learnable Filament Query Embeddings
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
@@ -231,38 +303,31 @@ class Mask2Former(nn.Module):
         multi_scale_features, mask_features = self.pixel_decoder(x)
 
         # 2. Initialize queries
-        queries = self.query_embed.weight.unsqueeze(0).repeat(B, 1, 1) # [B, num_queries, hidden_dim]
+        queries = self.query_embed.weight.unsqueeze(0).repeat(B, 1, 1)  # [B, num_queries, hidden_dim]
 
         # 3. Iterative Transformer Decoding with Masked Attention
         attn_mask = None
         for i, layer in enumerate(self.decoder_layers):
-            # Select multi-scale memory feature map
             feat = multi_scale_features[i % len(multi_scale_features)]
             B_f, C_f, H_f, W_f = feat.shape
-            memory = feat.flatten(2).transpose(1, 2) # [B, H*W, hidden_dim]
+            memory = feat.flatten(2).transpose(1, 2)  # [B, H*W, hidden_dim]
 
-            # Adjust previous predicted mask to current layer spatial resolution
             if attn_mask is not None and attn_mask.shape[-1] != (H_f * W_f):
-                attn_mask = None # Reset when switching feature scale
+                attn_mask = None
 
-            # Apply layer
             queries = layer(queries, memory, attn_mask)
 
-            # Predict intermediate mask for next layer's masked attention
-            mask_embed = self.mask_embed(queries) # [B, num_queries, hidden_dim]
+            mask_embed = self.mask_embed(queries)  # [B, num_queries, hidden_dim]
             feat_flat = feat.view(B_f, C_f, -1)
             pred_masks = torch.bmm(mask_embed, feat_flat).view(B, self.num_queries, H_f, W_f)
 
-            # Next layer masked cross-attention: mask out background
-            mask_weights = (pred_masks.sigmoid() < 0.5).unsqueeze(1) # [B, 1, num_queries, H_f, W_f]
+            mask_weights = (pred_masks.sigmoid() < 0.5).unsqueeze(1)
             attn_mask = torch.where(mask_weights.flatten(3), float('-1e4'), 0.0)
 
         # 4. Final dense mask prediction using high-res mask features
-        mask_embed = self.mask_embed(queries) # [B, num_queries, hidden_dim]
-        # Aggregate top filament queries: [B, hidden_dim, 1, 1]
+        mask_embed = self.mask_embed(queries)
         combined_query = mask_embed.mean(dim=1).unsqueeze(-1).unsqueeze(-1)
-        
-        # Spatial channel modulation of high-res mask features
+
         modulated_features = mask_features * combined_query
         logits = self.head(modulated_features)
 
@@ -283,7 +348,9 @@ def build_mask2former(config: dict = None) -> Mask2Former:
         num_queries=config.get('num_queries', 20),
         hidden_dim=config.get('hidden_dim', 128),
         num_decoder_layers=config.get('num_decoder_layers', 3),
+        backbone=config.get('backbone', 'resnet34'),
+        pretrained=config.get('pretrained', True),
     )
     total, trainable = model.count_parameters()
-    print(f"Mask2Former Model: {total:,} total parameters ({trainable:,} trainable)")
+    print(f"Mask2Former Model [{model.backbone_name.upper()}]: {total:,} total parameters ({trainable:,} trainable)")
     return model
