@@ -7,7 +7,7 @@ pycocotools
 tqdm
 pyyaml
 numpy
-opencv-python
+opencv-python-headless
 pillow
 matplotlib
 scipy
