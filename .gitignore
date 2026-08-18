@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+ENV/
+
+# Datasets & Heavy Caches (Ignore raw dataset images & cached tensors)
+images/
+cache_512/
+*.tar.gz
+*.zip
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Output temporary test predictions (Keep folder structure)
+outputs/predictions/*
+!outputs/predictions/.gitkeep
