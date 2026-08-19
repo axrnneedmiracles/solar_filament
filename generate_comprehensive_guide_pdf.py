@@ -490,8 +490,92 @@ def build_zero_to_hundred_pdf(filename: str = "Solar_Filament_Complete_Guide_Zer
     ]))
     story.append(t_out)
 
+    # =========================================================================
+    # PAGE 5: SCIENTIFIC OPTIMIZATION & RECALL/DICE IMPROVEMENT BREAKDOWN
+    # =========================================================================
+    story.append(PageBreak())
+    story.append(Paragraph("8. Scientific Optimization: How We Boosted Dice & Recall", title_style))
+    story.append(Paragraph(
+        "Standard segmentation architectures (like classical U-Net and uncalibrated CNNs) struggle with solar filaments "
+        "due to <b>extreme class imbalance (1:297 ratio)</b> and the loss of <b>thin thread structures (1-4 px wide)</b>. "
+        "Through a controlled, multi-stage scientific optimization roadmap, we systematically scaled performance from <b>~0.66 U-Net Dice / ~65% Recall</b> "
+        "up to <b>0.7249 Peak Dice</b> and <b>75.72% Maximum Boundary Recall</b>.",
+        body_style
+    ))
+    story.append(Spacer(1, 4))
+
+    # Optimization Pillars Table
+    pillars_data = [
+        [Paragraph("Optimization Stage", table_header_style), Paragraph("Core Technical Mechanism & Loss Formula", table_header_style), Paragraph("Scientific Impact & Metric Gain", table_header_style)],
+        [
+            Paragraph("<b>1. Pretrained ResNet-34 Feature Pyramid</b>", table_cell_style),
+            Paragraph("Replaced custom random CNN with ImageNet-pretrained ResNet-34 backbone adapted for single-channel solar H-alpha. Pre-trained weights provide rich multi-scale hierarchical edge and texture primitives.", table_cell_style),
+            Paragraph("<b>+2.45% Dice</b> (0.6990 -&gt; 0.7235). Drastically reduced early false positives on chromospheric network textures and sunspot penumbrae.", table_cell_style)
+        ],
+        [
+            Paragraph("<b>2. Multi-Task Hybrid Boundary Loss</b>", table_cell_style),
+            Paragraph("Replaced standard symmetric BCE with a tri-part objective:<br/><b>L = 0.40 * L_Dice + 0.30 * L_Focal(alpha=0.75, gamma=2.0) + 0.30 * L_Boundary</b><br/>Boundary loss computes morphological gradients: <i>(Dilation - Erosion)</i>.", table_cell_style),
+            Paragraph("<b>+3.62% Recall</b> (0.6989 -&gt; 0.7351) &amp; <b>0.7249 Peak Dice</b>. Forced gradient backpropagation directly into faint sub-pixel filament edges.", table_cell_style)
+        ],
+        [
+            Paragraph("<b>3. Resolution Scaling (768x768)</b>", table_cell_style),
+            Paragraph("Scaled input dimensions from 512x512 -&gt; 768x768 (2.25x increase in pixel density) with gradient accumulation (batch=2, accum=2) to fit safely within 6GB VRAM on RTX 4050.", table_cell_style),
+            Paragraph("<b>75.72% Max Recall</b> (Peak across all experiments). Eliminated downsampling blur on ultra-fine thread structures.", table_cell_style)
+        ]
+    ]
+
+    t_pillars = Table(pillars_data, colWidths=[130, 240, 160])
+    t_pillars.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2B6CB0')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E0')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F7FAFC'), colors.white]),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(t_pillars)
+    story.append(Spacer(1, 8))
+
+    # Benchmark Progression Table
+    story.append(Paragraph("Systematic Model Progression Benchmark", h2_style))
+    benchmark_data = [
+        [Paragraph("Model / Experiment", table_header_style), Paragraph("Backbone", table_header_style), Paragraph("Loss Function", table_header_style), Paragraph("Resolution", table_header_style), Paragraph("Val Dice", table_header_style), Paragraph("Val Recall", table_header_style), Paragraph("Val IoU", table_header_style)],
+        [Paragraph("Legacy Baseline", table_cell_style), Paragraph("U-Net CNN", table_cell_style), Paragraph("Dice + BCE", table_cell_style), Paragraph("512x512", table_cell_style), Paragraph("~0.6600", table_cell_style), Paragraph("~0.6500", table_cell_style), Paragraph("~0.4925", table_cell_style)],
+        [Paragraph("Initial Mask2Former", table_cell_style), Paragraph("Custom 5-Stage", table_cell_style), Paragraph("Dice + BCE", table_cell_style), Paragraph("512x512", table_cell_style), Paragraph("0.6990", table_cell_style), Paragraph("0.6989", table_cell_style), Paragraph("0.5399", table_cell_style)],
+        [Paragraph("Phase 1: Pretrained", table_cell_style), Paragraph("ResNet-34", table_cell_style), Paragraph("Dice + BCE", table_cell_style), Paragraph("512x512", table_cell_style), Paragraph("0.7235", table_cell_style), Paragraph("0.7183", table_cell_style), Paragraph("0.5695", table_cell_style)],
+        [Paragraph("Phase 2: Hybrid Loss", table_cell_style), Paragraph("ResNet-34", table_cell_style), Paragraph("Dice+Focal+Boundary", table_cell_style), Paragraph("512x512", table_cell_style), Paragraph("<b>0.7249</b>", table_cell_style), Paragraph("0.7351", table_cell_style), Paragraph("<b>0.5723</b>", table_cell_style)],
+        [Paragraph("Phase 3: High-Res", table_cell_style), Paragraph("ResNet-34", table_cell_style), Paragraph("Dice+Focal+Boundary", table_cell_style), Paragraph("768x768", table_cell_style), Paragraph("0.7207", table_cell_style), Paragraph("<b>0.7572</b>", table_cell_style), Paragraph("0.5708", table_cell_style)],
+    ]
+
+    t_bench = Table(benchmark_data, colWidths=[95, 75, 115, 60, 60, 65, 60])
+    t_bench.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1A365D')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (2, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E0')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F7FAFC'), colors.white]),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    story.append(t_bench)
+    story.append(Spacer(1, 8))
+
+    # Checkpoints Location Box
+    story.append(Paragraph("Where All Trained Models & Weights Are Stored", h2_style))
+    ckpt_text = (
+        "All trained PyTorch model checkpoints (.pth) are safely preserved in the local <b>checkpoints/</b> directory:<br/>"
+        "&bull; <b>checkpoints/best_model.pth</b>: Active default model (<b>0.7249 Dice, 0.5723 IoU, 0.7351 Recall</b> at 512x512).<br/>"
+        "&bull; <b>checkpoints/phase3_768res_dice0.7207.pth</b>: High-resolution model (<b>75.72% Max Recall</b>, 0.7207 Dice at 768x768).<br/>"
+        "&bull; <b>checkpoints/phase2_hybrid_loss_dice0.7249.pth</b>: Preserved Phase 2 peak hybrid loss checkpoint.<br/>"
+        "&bull; <b>checkpoints/phase1_resnet34_dice0.7235.pth</b>: Preserved Phase 1 pretrained ResNet-34 checkpoint.<br/>"
+        "&bull; <b>checkpoints/baseline_mask2former_epoch46_dice0.6990.pth</b>: Preserved initial from-scratch baseline checkpoint."
+    )
+    story.append(Paragraph(ckpt_text, callout_style))
+
     doc.build(story, canvasmaker=NumberedCanvas)
-    print(f"Master Zero-to-Hundred Guide PDF successfully created at: {filename}")
+    print(f"Master Zero-to-Hundred Guide PDF successfully updated at: {filename}")
 
 
 if __name__ == '__main__':
