@@ -65,42 +65,46 @@ def train_one_epoch(
     scaler: GradScaler,
     use_amp: bool,
     gradient_clip: float = 1.0,
+    gradient_accumulation_steps: int = 1,
 ) -> Dict[str, float]:
-    """Train for one epoch."""
+    """Train for one epoch with optional gradient accumulation."""
     model.train()
     total_loss = 0.0
     total_dice = 0.0
     total_iou = 0.0
     n_batches = 0
 
+    optimizer.zero_grad(set_to_none=True)
     pbar = tqdm(loader, desc="Training", leave=False)
-    for images, masks in pbar:
+    for batch_idx, (images, masks) in enumerate(pbar):
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True)
 
-        optimizer.zero_grad(set_to_none=True)
-
         with autocast(device_type=device.type, enabled=use_amp):
             logits = model(images)
-            loss = criterion(logits, masks)
+            raw_loss = criterion(logits, masks)
+            loss = raw_loss / gradient_accumulation_steps
 
         scaler.scale(loss).backward()
-        scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
-        scaler.step(optimizer)
-        scaler.update()
+
+        if (batch_idx + 1) % gradient_accumulation_steps == 0 or (batch_idx + 1) == len(loader):
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad(set_to_none=True)
 
         # Metrics (detach for speed)
         with torch.no_grad():
             metrics = compute_all_metrics(logits.detach(), masks)
 
-        total_loss += loss.item()
+        total_loss += raw_loss.item()
         total_dice += metrics['dice']
         total_iou += metrics['iou']
         n_batches += 1
 
         pbar.set_postfix({
-            'loss': f"{loss.item():.4f}",
+            'loss': f"{raw_loss.item():.4f}",
             'dice': f"{metrics['dice']:.4f}",
         })
 
@@ -222,6 +226,10 @@ def train(config_path: str = None):
     gradient_clip = config['training'].get('gradient_clip', 1.0)
     print(f"AMP: {'Enabled' if use_amp else 'Disabled'}")
 
+    gradient_accumulation_steps = config['training'].get('gradient_accumulation_steps', 1)
+    if gradient_accumulation_steps > 1:
+        print(f"Gradient Accumulation: {gradient_accumulation_steps} steps (Effective batch size = {config['training']['batch_size'] * gradient_accumulation_steps})")
+
     # Training state
     best_val_dice = 0.0
     patience_counter = 0
@@ -241,7 +249,7 @@ def train(config_path: str = None):
         # Train
         train_metrics = train_one_epoch(
             model, train_loader, criterion, optimizer, device,
-            scaler, use_amp, gradient_clip
+            scaler, use_amp, gradient_clip, gradient_accumulation_steps
         )
 
         # Validate

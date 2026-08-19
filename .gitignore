@@ -29,6 +29,9 @@ ENV/
 # Datasets & Heavy Caches (Ignore raw dataset images & cached tensors)
 images/
 cache_512/
+cache_768/
+checkpoints/*.pth
+.gradio/
 *.tar.gz
 *.zip
 

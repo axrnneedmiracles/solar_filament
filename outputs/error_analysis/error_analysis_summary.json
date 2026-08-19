@@ -1,0 +1,39 @@
+{
+  "n_val_images": 231,
+  "image_size": 512,
+  "original_size": 2048,
+  "mean_dice": 0.6887,
+  "std_dice": 0.1746,
+  "median_dice": 0.7356,
+  "min_dice": 0.0,
+  "max_dice": 0.9327,
+  "class_imbalance_fg_pct": 0.3356,
+  "global_precision": 0.7272,
+  "global_recall": 0.7429,
+  "boundary_precision": 0.7588,
+  "boundary_recall": 0.7438,
+  "thin_filament_recall": 0.7449,
+  "fragmentation_rate": 0.1081,
+  "optimal_threshold": 0.45,
+  "optimal_threshold_dice": 0.6887,
+  "current_threshold_dice": 0.6887,
+  "threshold_sweep": {
+    "0.1": 0.6855,
+    "0.2": 0.6874,
+    "0.3": 0.6885,
+    "0.4": 0.6885,
+    "0.45": 0.6887,
+    "0.5": 0.6887,
+    "0.55": 0.6887,
+    "0.6": 0.6886,
+    "0.7": 0.6885,
+    "0.8": 0.6882
+  },
+  "top_5_limiting_factors": [
+    "No pretrained backbone (from-scratch CNN)",
+    "Extreme class imbalance (0.3356% foreground)",
+    "4x resolution downscale (2048 -> 512)",
+    "Fixed threshold 0.5 vs optimal 0.45",
+    "Weak data augmentation (no elastic/noise/cutout)"
+  ]
+}

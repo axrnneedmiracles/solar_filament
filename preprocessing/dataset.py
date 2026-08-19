@@ -103,7 +103,11 @@ class SolarFilamentDataset(Dataset):
         return mask
 
     def _augment(self, image: np.ndarray, mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Apply fast on-the-fly augmentation."""
+        """
+        Dihedral symmetry & contrast/brightness augmentation.
+        Preserves exact sub-pixel boundary sharpness without interpolation artifacts.
+        """
+        # Exact discrete flips & 90-deg rotations (no interpolation error)
         if random.random() > 0.5:
             image = np.fliplr(image).copy()
             mask = np.fliplr(mask).copy()
@@ -117,11 +121,17 @@ class SolarFilamentDataset(Dataset):
             image = np.rot90(image, k).copy()
             mask = np.rot90(mask, k).copy()
 
+        # Photometric variations
         if random.random() > 0.5:
             factor = random.uniform(0.85, 1.15)
-            image = np.clip(image * factor, 0.0, 1.0).astype(np.float32)
+            image = np.clip(image * factor, 0.0, 1.0)
 
-        return image, mask
+        if random.random() > 0.5:
+            c_factor = random.uniform(0.90, 1.10)
+            mean_val = float(np.mean(image))
+            image = np.clip((image - mean_val) * c_factor + mean_val, 0.0, 1.0)
+
+        return image.astype(np.float32), mask.astype(np.float32)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         image_id = self.image_ids[idx]
@@ -217,7 +227,7 @@ def get_dataloaders(
         image_size=image_size,
         augment=True,
         image_ids=train_ids,
-        cache_dir="cache_512",
+        cache_dir=f"cache_{image_size}",
     )
 
     val_dataset = SolarFilamentDataset(
@@ -226,7 +236,7 @@ def get_dataloaders(
         image_size=image_size,
         augment=False,
         image_ids=val_ids,
-        cache_dir="cache_512",
+        cache_dir=f"cache_{image_size}",
     )
 
     train_loader = DataLoader(
