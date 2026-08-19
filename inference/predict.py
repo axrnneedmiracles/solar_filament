@@ -26,12 +26,13 @@ def try_load_model(checkpoint_path: str, config: dict):
     try:
         import torch
         if not os.path.exists(checkpoint_path):
-            return None, None
+            return None, None, config.get('data', {}).get('image_size', 512)
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
         saved_config = checkpoint.get('config', config)
         model_name = saved_config.get('model', {}).get('name', 'mask2former').lower()
+        image_size = saved_config.get('data', {}).get('image_size', config.get('data', {}).get('image_size', 512))
         
         if model_name == 'mask2former':
             from models.mask2former import build_mask2former
@@ -42,11 +43,14 @@ def try_load_model(checkpoint_path: str, config: dict):
             
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.to(device).eval()
-        print(f"Loaded {model_name.upper()} model from {checkpoint_path} on {device}")
-        return model, device
+        epoch_info = checkpoint.get('epoch', '?')
+        dice_info = checkpoint.get('val_dice', 0.0)
+        rec_info = checkpoint.get('val_recall', 0.0)
+        print(f"Loaded {model_name.upper()} model [Epoch {epoch_info} | Dice: {dice_info:.4f} | Rec: {rec_info:.4f}] from {checkpoint_path} on {device} (Input size: {image_size}x{image_size})")
+        return model, device, image_size
     except Exception as e:
         print(f"DL Model not loaded ({e}). Running in Classical CV mode.")
-        return None, None
+        return None, None, config.get('data', {}).get('image_size', 512)
 
 
 class SolarFilamentPredictor:
@@ -66,6 +70,17 @@ class SolarFilamentPredictor:
             self.config = {'data': {'image_size': 512}}
 
         self.image_size = self.config.get('data', {}).get('image_size', 512)
+
+        # Try to load deep learning model (Mask2Former / U-Net)
+        if checkpoint_path is None:
+            checkpoint_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'checkpoints', 'best_model.pth'
+            )
+        self.model, self.device, loaded_size = try_load_model(checkpoint_path, self.config)
+        if loaded_size:
+            self.image_size = loaded_size
+
         self.preprocessor = SolarPreprocessor(target_size=self.image_size)
 
         # Setup Frangi pipeline
@@ -80,14 +95,6 @@ class SolarFilamentPredictor:
             max_area=frangi_cfg.get('max_area', 12000),
             target_size=self.image_size,
         )
-
-        # Try to load deep learning model (Mask2Former / U-Net)
-        if checkpoint_path is None:
-            checkpoint_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                'checkpoints', 'best_model.pth'
-            )
-        self.model, self.device = try_load_model(checkpoint_path, self.config)
 
     def predict_unet(self, image: np.ndarray) -> Tuple[Optional[np.ndarray], float]:
         """Run U-Net prediction if available."""

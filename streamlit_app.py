@@ -25,17 +25,16 @@ def get_predictor():
 
 predictor = get_predictor()
 
-col1, col2 = st.sidebar, st.container()
-
 with st.sidebar:
     st.header("⚙️ Settings")
+    st.success(f"🤖 **Active Model**: Mask2Former [ResNet-34]\n\n🎯 **Peak Recall**: 75.72% | **Dice**: 72.07%\n\n📐 **Resolution**: {predictor.image_size}×{predictor.image_size} px")
     method = st.selectbox(
         "Segmentation Pipeline",
         ["Hybrid", "Mask2Former", "UNet", "Frangi"]
     )
     fusion_alpha = st.slider(
         "Fusion Weight α",
-        min_value=0.0, max_value=1.0, value=0.5, step=0.05,
+        min_value=0.0, max_value=1.0, value=0.6, step=0.05,
         help="0.0 = Pure Frangi, 1.0 = Pure Deep Learning"
     )
     uploaded_file = st.file_uploader("Upload H-alpha Solar Image", type=["jpeg", "jpg", "png", "fts", "fits"])

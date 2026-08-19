@@ -9,7 +9,7 @@ data:
   annotations_file: "train/MAGFiLO_1.0_Annotations_kaggle2026_train.json"
   train_images_dir: "train/train_images"
   test_images_dir: "test/test_images"
-  image_size: 512
+  image_size: 768
   original_size: 2048
   train_ratio: 0.8
   val_ratio: 0.2

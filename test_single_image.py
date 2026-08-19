@@ -15,18 +15,18 @@ import sys
 import argparse
 import random
 import time
+from typing import Optional
 import numpy as np
 import cv2
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from preprocessing.solar_preprocessor import SolarPreprocessor
-from classical.frangi import FrangiPipeline
+from inference.predict import SolarFilamentPredictor
 from analysis.filament_morphology import analyze_filaments, generate_morphology_report, draw_morphology_overlay
 from visualization.viz import create_filament_overlay, create_comparison_grid, probability_to_heatmap
 
 
-def run_pipeline(image_path: str, output_dir: str = "outputs/predictions", method: str = "auto"):
+def run_pipeline(image_path: str, output_dir: str = "outputs/predictions", method: str = "auto", checkpoint_path: Optional[str] = None):
     os.makedirs(output_dir, exist_ok=True)
     base_name = os.path.splitext(os.path.basename(image_path))[0]
 
@@ -44,100 +44,60 @@ def run_pipeline(image_path: str, output_dir: str = "outputs/predictions", metho
     orig_h, orig_w = raw_img.shape[:2]
     print(f"Dimensions:   {orig_w}x{orig_h} px")
 
-    # 2. Preprocessor & Classical Pipeline
-    preprocessor = SolarPreprocessor(target_size=512)
-    frangi_pipe = FrangiPipeline(
-        scales=[1, 2, 3, 5, 8],
-        alpha=0.5,
-        beta=0.5,
-        gamma=15.0,
-        threshold=0.15,
-        min_area=80,
-        max_area=50000,
-        target_size=512
-    )
+    # 2. Predictor
+    predictor = SolarFilamentPredictor(checkpoint_path=checkpoint_path)
+    target_size = predictor.image_size
 
+    # Run inference
     t0 = time.time()
-    frangi_res = frangi_pipe.process_resized(raw_img)
-    frangi_time = time.time() - t0
-    print(f"Classical CV (Frangi + Hessian) runtime: {frangi_time*1000:.1f} ms")
+    results = predictor.predict(raw_img, method=method.lower(), fusion_alpha=0.6)
+    total_time = time.time() - t0
 
-    # 3. Check for PyTorch U-Net checkpoint
-    unet_available = False
-    unet_prob = None
-    checkpoint_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints", "best_model.pth")
-
-    try:
-        import torch
-        from models.unet import build_unet
-        if os.path.exists(checkpoint_path):
-            device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-            model = build_unet()
-            ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-            model.load_state_dict(ckpt['model_state_dict'])
-            model = model.to(device).eval()
-
-            preproc_model = preprocessor.preprocess_for_model(raw_img)
-            tensor = torch.from_numpy(preproc_model).unsqueeze(0).unsqueeze(0).to(device)
-            with torch.no_grad():
-                logits = model(tensor)
-                unet_prob = torch.sigmoid(logits).squeeze().cpu().numpy()
-            unet_available = True
-            print(f"U-Net DL Model loaded & evaluated on {device}")
-    except Exception as e:
-        unet_available = False
-
-    # 4. Determine final mask
-    frangi_mask = frangi_res['filament_mask']
-    frangi_prob = frangi_res['frangi_probability']
-
-    if unet_available and method in ['auto', 'hybrid']:
-        from hybrid.fusion import fuse_predictions
-        final_prob = fuse_predictions(unet_prob, frangi_prob, alpha=0.6)
-        final_mask = (final_prob > 0.45).astype(np.uint8)
-        selected_method = "Hybrid (U-Net + Frangi)"
-    elif unet_available and method == 'unet':
-        final_prob = unet_prob
-        final_mask = (final_prob > 0.5).astype(np.uint8)
-        selected_method = "U-Net Deep Learning"
+    dl_available = predictor.model is not None
+    if dl_available and method.lower() in ['auto', 'hybrid']:
+        selected_method = f"Hybrid (Mask2Former + Frangi) [{target_size}x{target_size}]"
+    elif dl_available and method.lower() in ['unet', 'mask2former', 'deeplearning']:
+        selected_method = f"Mask2Former Deep Learning [{target_size}x{target_size}]"
     else:
-        final_prob = frangi_prob
-        final_mask = frangi_mask
-        selected_method = "Frangi + Hessian Ridge Detection"
+        selected_method = f"Frangi + Hessian Ridge Detection [{target_size}x{target_size}]"
 
-    print(f"Active Mode:  {selected_method}")
+    print(f"Active Model: {selected_method}")
+    print(f"Inference Time: {results.get('inference_time', 0.0)*1000:.1f} ms (Total Pipeline: {total_time*1000:.1f} ms)")
 
-    # 5. Morphology & Analysis
+    final_mask = results['final_mask']
+    final_prob = results['final_probability']
+
+    # 3. Morphology & Analysis
     filaments = analyze_filaments(final_mask, final_prob, min_area=40)
     report_text = generate_morphology_report(filaments)
     print("\n" + report_text)
 
-    # 6. Save visualizations
-    img_512 = cv2.resize(raw_img, (512, 512))
-    overlay = create_filament_overlay(img_512, final_mask, color=(0, 0, 255), alpha=0.45)
+    # 4. Visualizations
+    img_resized = cv2.resize(raw_img, (target_size, target_size))
+    overlay = create_filament_overlay(img_resized, final_mask, color=(0, 0, 255), alpha=0.45)
     annotated_overlay = draw_morphology_overlay(overlay, final_mask, filaments)
 
     # Save output artifacts
-    out_overlay_path = os.path.join(output_dir, f"{base_name}_detected_overlay.png")
-    out_mask_path = os.path.join(output_dir, f"{base_name}_mask.png")
-    out_report_path = os.path.join(output_dir, f"{base_name}_morphology.txt")
-    out_grid_path = os.path.join(output_dir, f"{base_name}_comparison_grid.png")
-
-    out_csv_path = os.path.join(output_dir, f"{base_name}_morphology.csv")
-    out_json_path = os.path.join(output_dir, f"{base_name}_morphology.json")
+    out_overlay_path = os.path.join(output_dir, f"{base_name}_morphology_overlay.png")
+    out_mask_path = os.path.join(output_dir, f"{base_name}_filament_mask.png")
+    out_grid_path = os.path.join(output_dir, f"{base_name}_analysis_grid.png")
+    out_report_path = os.path.join(output_dir, f"{base_name}_morphology_report.txt")
+    out_csv_path = os.path.join(output_dir, f"{base_name}_filaments.csv")
+    out_json_path = os.path.join(output_dir, f"{base_name}_filaments.json")
 
     cv2.imwrite(out_overlay_path, annotated_overlay)
     cv2.imwrite(out_mask_path, (final_mask * 255).astype(np.uint8))
 
+    preproc_bgr = cv2.cvtColor(results['preprocessed'], cv2.COLOR_GRAY2BGR) if len(results['preprocessed'].shape) == 2 else results['preprocessed']
     grid_dict = {
-        'original': img_512,
-        'preprocessed': frangi_res['preprocessed'],
-        'frangi_response': (frangi_res['frangi_response'] * 255).astype(np.uint8),
-        'unet_probability': probability_to_heatmap(final_prob),
-        'final_mask': (final_mask * 255).astype(np.uint8),
-        'overlay': annotated_overlay
+        "1. Original H-Alpha": img_resized,
+        "2. Solar Preprocessed": preproc_bgr,
+        "3. Frangi Ridge Map": probability_to_heatmap(cv2.resize(results['frangi_response'], (target_size, target_size)).astype(np.float32)),
+        "4. Model Probability": probability_to_heatmap(final_prob.astype(np.float32)),
+        "5. Binary Mask": cv2.cvtColor((final_mask * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR),
+        "6. Annotated Detection": annotated_overlay,
     }
-    grid = create_comparison_grid(grid_dict, target_size=512)
+    grid = create_comparison_grid(grid_dict, target_size=target_size)
     cv2.imwrite(out_grid_path, grid)
 
     with open(out_report_path, "w") as f:
@@ -159,8 +119,9 @@ def run_pipeline(image_path: str, output_dir: str = "outputs/predictions", metho
 def main():
     parser = argparse.ArgumentParser(description="Solar Filament Segmentation Inference")
     parser.add_argument("--image", type=str, help="Path to input solar image (JPEG/PNG)")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Path to PyTorch checkpoint (.pth)")
     parser.add_argument("--random-test", action="store_true", help="Pick a random image from the test set")
-    parser.add_argument("--method", type=str, default="auto", choices=["auto", "hybrid", "unet", "frangi"])
+    parser.add_argument("--method", type=str, default="auto", choices=["auto", "hybrid", "unet", "mask2former", "frangi"])
     parser.add_argument("--output-dir", type=str, default="outputs/predictions")
     args = parser.parse_args()
 
@@ -181,7 +142,7 @@ def main():
     else:
         image_path = args.image
 
-    run_pipeline(image_path, args.output_dir, args.method)
+    run_pipeline(image_path, args.output_dir, args.method, args.checkpoint)
 
 
 if __name__ == "__main__":

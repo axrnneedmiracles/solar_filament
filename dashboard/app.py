@@ -96,7 +96,8 @@ def create_dashboard():
     ) as demo:
         gr.Markdown("""
         # ☀️ Solar Filament Segmentation & Space Weather Intelligence System
-        ### Classical Computer Vision (Frangi / Hessian) + Deep Learning (Mask2Former / U-Net) Hybrid Platform
+        ### 🤖 **Active AI Engine**: Mask2Former (`ResNet-34` Backbone) | **Val Recall: 75.72%** | **Val Dice: 72.07%** @ 768×768 px
+        #### Classical Computer Vision (Frangi / Hessian) + Deep Learning Transformer Hybrid Platform
 
         Upload any full-disk H-alpha solar image to detect, segment, and quantitatively analyze solar filaments in real time.
         """)
