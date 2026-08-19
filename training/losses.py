@@ -1,8 +1,11 @@
 """
-Segmentation Losses
-===================
-Combined Dice + BCE loss for binary segmentation.
-Dice loss handles class imbalance (filaments are small fraction of image).
+Segmentation Losses for Solar Filament Detection
+=================================================
+Implements:
+1. Soft Dice Loss (global region overlap)
+2. Focal Loss (hard example mining & severe class imbalance handling)
+3. Boundary Dice Loss (morphological boundary edge supervision)
+4. Combined Hybrid Losses (Dice+BCE, Dice+Focal, Dice+Focal+Boundary)
 """
 
 import torch
@@ -32,12 +35,9 @@ class DiceLoss(nn.Module):
 class DiceBCELoss(nn.Module):
     """
     Combined Dice + Binary Cross-Entropy loss.
-
-    Dice handles class imbalance, BCE provides stable pixel-level gradients.
     """
 
-    def __init__(self, dice_weight: float = 0.5, bce_weight: float = 0.5,
-                 smooth: float = 1.0):
+    def __init__(self, dice_weight: float = 0.5, bce_weight: float = 0.5, smooth: float = 1.0):
         super().__init__()
         self.dice_weight = dice_weight
         self.bce_weight = bce_weight
@@ -51,9 +51,12 @@ class DiceBCELoss(nn.Module):
 
 
 class FocalLoss(nn.Module):
-    """Focal loss for hard example mining."""
+    """
+    Focal Loss with balanced class weighting (alpha) and modulating factor (gamma).
+    Down-weights easy background pixels and forces focus on rare filament pixels.
+    """
 
-    def __init__(self, alpha: float = 0.25, gamma: float = 2.0):
+    def __init__(self, alpha: float = 0.75, gamma: float = 2.0):
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
@@ -61,7 +64,115 @@ class FocalLoss(nn.Module):
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         bce = F.binary_cross_entropy_with_logits(logits, targets, reduction='none')
         probs = torch.sigmoid(logits)
-        pt = targets * probs + (1 - targets) * (1 - probs)
-        focal_weight = self.alpha * (1 - pt) ** self.gamma
-        loss = (focal_weight * bce).mean()
-        return loss
+        pt = targets * probs + (1.0 - targets) * (1.0 - probs)
+        alpha_t = targets * self.alpha + (1.0 - targets) * (1.0 - self.alpha)
+        focal_weight = alpha_t * ((1.0 - pt) ** self.gamma)
+        return (focal_weight * bce).mean()
+
+
+class BoundaryLoss(nn.Module):
+    """
+    Morphological Boundary Loss:
+    Extracts the thin boundary contour of ground truth masks using morphological gradient
+    and calculates dedicated boundary Dice to penalize edge blurring and fragmentation.
+    """
+
+    def __init__(self, kernel_size: int = 3, smooth: float = 1.0):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.padding = kernel_size // 2
+        self.smooth = smooth
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            dilated = F.max_pool2d(targets, kernel_size=self.kernel_size, stride=1, padding=self.padding)
+            eroded = -F.max_pool2d(-targets, kernel_size=self.kernel_size, stride=1, padding=self.padding)
+            boundary = (dilated - eroded).clamp(0.0, 1.0)
+
+        probs = torch.sigmoid(logits)
+        probs_b = (probs * boundary).view(-1)
+        targets_b = (targets * boundary).view(-1)
+
+        intersection = (probs_b * targets_b).sum()
+        boundary_dice = (2.0 * intersection + self.smooth) / \
+                        (probs_b.sum() + targets_b.sum() + self.smooth)
+
+        return 1.0 - boundary_dice
+
+
+class DiceFocalLoss(nn.Module):
+    """
+    Combined Soft Dice + Focal Loss.
+    """
+
+    def __init__(self, dice_weight: float = 0.5, focal_weight: float = 0.5,
+                 alpha: float = 0.75, gamma: float = 2.0, smooth: float = 1.0):
+        super().__init__()
+        self.dice_weight = dice_weight
+        self.focal_weight = focal_weight
+        self.dice = DiceLoss(smooth=smooth)
+        self.focal = FocalLoss(alpha=alpha, gamma=gamma)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        return self.dice_weight * self.dice(logits, targets) + \
+               self.focal_weight * self.focal(logits, targets)
+
+
+class DiceFocalBoundaryLoss(nn.Module):
+    """
+    Combined Soft Dice + Focal + Morphological Boundary Loss.
+    Combines:
+    - Region-level spatial overlap (Dice: 40%)
+    - Class imbalance hard pixel mining (Focal: 30%)
+    - Sub-pixel boundary contour precision (Boundary: 30%)
+    """
+
+    def __init__(
+        self,
+        dice_weight: float = 0.4,
+        focal_weight: float = 0.3,
+        boundary_weight: float = 0.3,
+        alpha: float = 0.75,
+        gamma: float = 2.0,
+        smooth: float = 1.0,
+    ):
+        super().__init__()
+        self.dice_weight = dice_weight
+        self.focal_weight = focal_weight
+        self.boundary_weight = boundary_weight
+        self.dice = DiceLoss(smooth=smooth)
+        self.focal = FocalLoss(alpha=alpha, gamma=gamma)
+        self.boundary = BoundaryLoss(smooth=smooth)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        return (
+            self.dice_weight * self.dice(logits, targets)
+            + self.focal_weight * self.focal(logits, targets)
+            + self.boundary_weight * self.boundary(logits, targets)
+        )
+
+
+def build_loss(loss_name: str = 'dice_focal_boundary', config: dict = None) -> nn.Module:
+    """Factory function for segmentation loss functions."""
+    name = (loss_name or 'dice_bce').lower()
+    if name in ('dice_focal_boundary', 'dice_boundary_focal', 'hybrid'):
+        return DiceFocalBoundaryLoss(
+            dice_weight=config.get('dice_weight', 0.4) if config else 0.4,
+            focal_weight=config.get('focal_weight', 0.3) if config else 0.3,
+            boundary_weight=config.get('boundary_weight', 0.3) if config else 0.3,
+            alpha=config.get('focal_alpha', 0.75) if config else 0.75,
+            gamma=config.get('focal_gamma', 2.0) if config else 2.0,
+        )
+    elif name in ('dice_focal', 'focal_dice'):
+        return DiceFocalLoss(
+            dice_weight=config.get('dice_weight', 0.5) if config else 0.5,
+            focal_weight=config.get('focal_weight', 0.5) if config else 0.5,
+            alpha=config.get('focal_alpha', 0.75) if config else 0.75,
+            gamma=config.get('focal_gamma', 2.0) if config else 2.0,
+        )
+    elif name == 'focal':
+        return FocalLoss()
+    elif name == 'dice':
+        return DiceLoss()
+    else:
+        return DiceBCELoss()

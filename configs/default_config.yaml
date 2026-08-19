@@ -25,6 +25,12 @@ training:
   patience: 25
   amp: true
   gradient_clip: 1.0
+  loss: "dice_focal_boundary"
+  dice_weight: 0.4
+  focal_weight: 0.3
+  boundary_weight: 0.3
+  focal_alpha: 0.75
+  focal_gamma: 2.0
 
 model:
   name: "mask2former"

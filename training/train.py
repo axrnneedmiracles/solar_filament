@@ -23,7 +23,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.unet import build_unet
-from training.losses import DiceBCELoss
+from training.losses import build_loss, DiceBCELoss
 from training.metrics import compute_all_metrics
 from preprocessing.dataset import get_dataloaders
 
@@ -204,7 +204,9 @@ def train(config_path: str = None):
     model = model.to(device)
 
     # Loss, optimizer, scheduler
-    criterion = DiceBCELoss()
+    loss_name = config['training'].get('loss', 'dice_focal_boundary')
+    print(f"Loss Function: [{loss_name.upper()}]")
+    criterion = build_loss(loss_name, config['training'])
     optimizer = optim.AdamW(
         model.parameters(),
         lr=config['training']['lr'],
