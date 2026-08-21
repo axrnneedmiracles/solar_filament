@@ -1,0 +1,72 @@
+# Solar Filament Segmentation — Frangi+Hessian Feature Channel Experiment
+# ========================================================================
+# IDENTICAL to Phase 2 best config (0.7249 Dice at 512x512) except:
+#   model.in_channels: 3  (H-alpha + Frangi + Hessian)
+#   data.use_frangi_channels: true
+#   data.image_size: 512  (same as Phase 2 baseline)
+
+data:
+  dataset_root: "images/MAGFiLO_1.0_Kaggle_2026"
+  annotations_file: "train/MAGFiLO_1.0_Annotations_kaggle2026_train.json"
+  train_images_dir: "train/train_images"
+  test_images_dir: "test/test_images"
+  image_size: 512
+  original_size: 2048
+  train_ratio: 0.8
+  val_ratio: 0.2
+  seed: 42
+  num_workers: 0
+  use_frangi_channels: true
+
+training:
+  batch_size: 4
+  epochs: 50
+  lr: 0.0001
+  weight_decay: 0.00001
+  scheduler: "cosine"
+  patience: 25
+  amp: true
+  gradient_clip: 1.0
+  loss: "dice_focal_boundary"
+  dice_weight: 0.4
+  focal_weight: 0.3
+  boundary_weight: 0.3
+  focal_alpha: 0.75
+  focal_gamma: 2.0
+
+model:
+  name: "mask2former"
+  backbone: "resnet34"
+  pretrained: true
+  in_channels: 3
+  num_queries: 20
+  hidden_dim: 128
+  num_decoder_layers: 3
+  dropout: 0.1
+
+frangi:
+  scales: [0.5, 1.0, 1.5, 2.0]
+  alpha: 0.5
+  beta: 0.5
+  gamma: 15
+  black_ridges: true
+  threshold: 0.15
+  min_area: 100
+  max_area: 50000
+
+fusion:
+  alphas: [0.0, 0.25, 0.5, 0.75, 1.0]
+  default_alpha: 0.5
+
+morphology:
+  min_filament_area: 50
+  skeleton_method: "lee"
+
+device:
+  prefer_gpu: true
+  gpu_index: 0
+
+output:
+  checkpoint_dir: "checkpoints"
+  experiment_dir: "experiments"
+  visualization_dir: "outputs/visualizations"

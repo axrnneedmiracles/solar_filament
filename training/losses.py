@@ -152,10 +152,70 @@ class DiceFocalBoundaryLoss(nn.Module):
         )
 
 
-def build_loss(loss_name: str = 'dice_focal_boundary', config: dict = None) -> nn.Module:
+class FocalTverskyLoss(nn.Module):
+    """
+    Focal Tversky Loss:
+    Optimizes for high recall (beta=0.65) and precision (alpha=0.35) simultaneously.
+    Focal exponent gamma (>1) penalizes hard boundary errors.
+    """
+    def __init__(self, alpha: float = 0.35, beta: float = 0.65, gamma: float = 1.33, smooth: float = 1.0):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+        self.smooth = smooth
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        probs = torch.sigmoid(logits).view(-1)
+        targets_flat = targets.view(-1)
+
+        tp = (probs * targets_flat).sum()
+        fp = (probs * (1.0 - targets_flat)).sum()
+        fn = ((1.0 - probs) * targets_flat).sum()
+
+        tversky = (tp + self.smooth) / (tp + self.alpha * fp + self.beta * fn + self.smooth)
+        focal_tversky = torch.pow(1.0 - tversky, self.gamma)
+        return focal_tversky
+
+
+class FocalTverskyBoundaryLoss(nn.Module):
+    """
+    Combined Focal Tversky Loss + Morphological Boundary Loss.
+    """
+    def __init__(
+        self,
+        tversky_weight: float = 0.70,
+        boundary_weight: float = 0.30,
+        alpha: float = 0.35,
+        beta: float = 0.65,
+        gamma: float = 1.33,
+        smooth: float = 1.0
+    ):
+        super().__init__()
+        self.tversky_weight = tversky_weight
+        self.boundary_weight = boundary_weight
+        self.focal_tversky = FocalTverskyLoss(alpha=alpha, beta=beta, gamma=gamma, smooth=smooth)
+        self.boundary = BoundaryLoss(smooth=smooth)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        return (
+            self.tversky_weight * self.focal_tversky(logits, targets)
+            + self.boundary_weight * self.boundary(logits, targets)
+        )
+
+
+def build_loss(loss_name: str = 'focal_tversky_boundary', config: dict = None) -> nn.Module:
     """Factory function for segmentation loss functions."""
-    name = (loss_name or 'dice_bce').lower()
-    if name in ('dice_focal_boundary', 'dice_boundary_focal', 'hybrid'):
+    name = (loss_name or 'focal_tversky_boundary').lower()
+    if name in ('focal_tversky_boundary', 'tversky_boundary', 'focal_tversky'):
+        return FocalTverskyBoundaryLoss(
+            tversky_weight=config.get('tversky_weight', 0.70) if config else 0.70,
+            boundary_weight=config.get('boundary_weight', 0.30) if config else 0.30,
+            alpha=config.get('tversky_alpha', 0.35) if config else 0.35,
+            beta=config.get('tversky_beta', 0.65) if config else 0.65,
+            gamma=config.get('tversky_gamma', 1.33) if config else 1.33,
+        )
+    elif name in ('dice_focal_boundary', 'dice_boundary_focal', 'hybrid'):
         return DiceFocalBoundaryLoss(
             dice_weight=config.get('dice_weight', 0.4) if config else 0.4,
             focal_weight=config.get('focal_weight', 0.3) if config else 0.3,

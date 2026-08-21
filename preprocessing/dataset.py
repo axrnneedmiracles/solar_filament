@@ -4,6 +4,11 @@ Solar Filament Dataset with Fast Caching
 PyTorch Dataset class for the MAGFiLO solar filament dataset.
 Handles COCO-format polygon annotations, pre-rendered 512x512 mask caching,
 data augmentation, and GPU-optimized DataLoaders.
+
+Supports optional 3-channel input mode:
+  Channel 0: H-alpha preprocessed grayscale
+  Channel 1: Frangi vesselness response (multi-scale)
+  Channel 2: Hessian ridge response (multi-scale)
 """
 
 import os
@@ -14,7 +19,88 @@ import cv2
 import torch
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple, Optional, List, Dict
+from scipy.ndimage import gaussian_filter
 from preprocessing.solar_preprocessor import SolarPreprocessor
+
+
+# ─────────────────────────────────────────────────────────────
+# Classical feature computation for multi-channel input
+# ─────────────────────────────────────────────────────────────
+
+def compute_frangi_channel(image_float: np.ndarray,
+                           scales: list = [0.5, 1.0, 1.5, 2.0],
+                           beta: float = 0.5,
+                           c_frac: float = 0.5) -> np.ndarray:
+    """
+    Multi-scale Frangi vesselness for DARK ridges on a bright background.
+    Input: float64 image normalized to [0, 1], shape (H, W).
+    Returns: float32 vesselness map in [0, 1], shape (H, W).
+    """
+    img = (1.0 - image_float).astype(np.float64)
+    vesselness = np.zeros_like(img)
+
+    for sigma in scales:
+        smoothed = gaussian_filter(img, sigma=sigma)
+        Hyy = gaussian_filter(smoothed, sigma=sigma, order=[2, 0]) * (sigma ** 2)
+        Hxx = gaussian_filter(smoothed, sigma=sigma, order=[0, 2]) * (sigma ** 2)
+        Hxy = gaussian_filter(smoothed, sigma=sigma, order=[1, 1]) * (sigma ** 2)
+
+        trace = Hxx + Hyy
+        det = Hxx * Hyy - Hxy ** 2
+        disc = np.sqrt(np.maximum(trace ** 2 - 4 * det, 0))
+
+        lambda1 = (trace - disc) / 2
+        lambda2 = (trace + disc) / 2
+
+        abs1, abs2 = np.abs(lambda1), np.abs(lambda2)
+        swap = abs1 > abs2
+        l1 = np.where(swap, lambda2, lambda1)
+        l2 = np.where(swap, lambda1, lambda2)
+
+        valid = l2 < 0
+        Rb = np.zeros_like(l1)
+        Rb[valid] = (l1[valid] / (l2[valid] + 1e-10)) ** 2
+        S2 = l1 ** 2 + l2 ** 2
+        c = c_frac * np.max(np.sqrt(S2)) + 1e-7
+
+        V = np.zeros_like(img)
+        V[valid] = np.exp(-Rb[valid] / (2 * beta ** 2)) * (1 - np.exp(-S2[valid] / (2 * c ** 2)))
+        vesselness = np.maximum(vesselness, V)
+
+    v_max = vesselness.max()
+    if v_max > 0:
+        vesselness /= v_max
+    return vesselness.astype(np.float32)
+
+
+def compute_hessian_channel(image_float: np.ndarray,
+                            scales: list = [0.5, 1.0, 1.5]) -> np.ndarray:
+    """
+    Multi-scale Hessian ridge response for DARK ridges.
+    Input: float64 image normalized to [0, 1], shape (H, W).
+    Returns: float32 ridge response in [0, 1], shape (H, W).
+    """
+    img = image_float.astype(np.float64)
+    responses = []
+    for sigma in scales:
+        smoothed = gaussian_filter(img, sigma=sigma)
+        Hyy = gaussian_filter(smoothed, sigma=sigma, order=[2, 0]) * (sigma ** 2)
+        Hxx = gaussian_filter(smoothed, sigma=sigma, order=[0, 2]) * (sigma ** 2)
+        Hxy = gaussian_filter(smoothed, sigma=sigma, order=[1, 1]) * (sigma ** 2)
+
+        trace = Hxx + Hyy
+        det = Hxx * Hyy - Hxy ** 2
+        disc = np.sqrt(np.maximum(trace ** 2 - 4 * det, 0))
+
+        lambda2 = (trace + disc) / 2
+        response = np.maximum(lambda2, 0)
+        responses.append(response)
+
+    combined = np.max(responses, axis=0)
+    c_max = combined.max()
+    if c_max > 0:
+        combined /= c_max
+    return combined.astype(np.float32)
 
 
 def coco_poly_to_mask(segmentation: List[List[float]], height: int, width: int) -> np.ndarray:
@@ -58,11 +144,13 @@ class SolarFilamentDataset(Dataset):
         augment: bool = False,
         image_ids: Optional[List[str]] = None,
         cache_dir: Optional[str] = "cache_512",
+        use_frangi_channels: bool = False,
     ):
         self.image_dir = image_dir
         self.image_size = image_size
         self.augment = augment
         self.cache_dir = cache_dir
+        self.use_frangi_channels = use_frangi_channels
         self.preprocessor = SolarPreprocessor(target_size=image_size)
 
         if self.cache_dir:
@@ -173,7 +261,38 @@ class SolarFilamentDataset(Dataset):
         if self.augment:
             preprocessed, mask_float = self._augment(preprocessed, mask_float)
 
-        image_tensor = torch.from_numpy(preprocessed).unsqueeze(0)  # [1, H, W]
+        # ── Build input tensor ──
+        if self.use_frangi_channels:
+            # 3-channel: [H-alpha, Frangi vesselness, Hessian ridge]
+            # Check for cached 3-channel features
+            frangi_cache_dir = cache_dir.rstrip('/').rstrip('\\') + '_frangi' if cache_dir else None
+            cached_frangi_path = os.path.join(frangi_cache_dir, f"{base_id}_frangi.npy") if frangi_cache_dir else None
+            cached_hessian_path = os.path.join(frangi_cache_dir, f"{base_id}_hessian.npy") if frangi_cache_dir else None
+
+            if (cached_frangi_path and os.path.exists(cached_frangi_path)
+                    and os.path.exists(cached_hessian_path)):
+                frangi_ch = np.load(cached_frangi_path)
+                hessian_ch = np.load(cached_hessian_path)
+            else:
+                frangi_ch = compute_frangi_channel(preprocessed, scales=[0.5, 1.0, 1.5, 2.0])
+                hessian_ch = compute_hessian_channel(preprocessed, scales=[0.5, 1.0, 1.5])
+                if frangi_cache_dir:
+                    os.makedirs(frangi_cache_dir, exist_ok=True)
+                    np.save(cached_frangi_path, frangi_ch)
+                    np.save(cached_hessian_path, hessian_ch)
+
+            # Apply same augmentation transforms to feature channels
+            # (flips/rotations already applied to preprocessed, so recompute on augmented image)
+            if self.augment:
+                frangi_ch = compute_frangi_channel(preprocessed, scales=[0.5, 1.0, 1.5, 2.0])
+                hessian_ch = compute_hessian_channel(preprocessed, scales=[0.5, 1.0, 1.5])
+
+            # Stack: [3, H, W]
+            stacked = np.stack([preprocessed, frangi_ch, hessian_ch], axis=0)
+            image_tensor = torch.from_numpy(stacked)  # [3, H, W]
+        else:
+            image_tensor = torch.from_numpy(preprocessed).unsqueeze(0)  # [1, H, W]
+
         mask_tensor = torch.from_numpy(mask_float).unsqueeze(0)     # [1, H, W]
 
         return image_tensor, mask_tensor
@@ -215,6 +334,7 @@ def get_dataloaders(
     train_ratio: float = 0.8,
     seed: int = 42,
     pin_memory: bool = True,
+    use_frangi_channels: bool = False,
 ) -> Tuple[DataLoader, DataLoader]:
     """Create high-performance train and validation DataLoaders."""
     train_ids, val_ids = create_data_splits(
@@ -228,6 +348,7 @@ def get_dataloaders(
         augment=True,
         image_ids=train_ids,
         cache_dir=f"cache_{image_size}",
+        use_frangi_channels=use_frangi_channels,
     )
 
     val_dataset = SolarFilamentDataset(
@@ -237,6 +358,7 @@ def get_dataloaders(
         augment=False,
         image_ids=val_ids,
         cache_dir=f"cache_{image_size}",
+        use_frangi_channels=use_frangi_channels,
     )
 
     train_loader = DataLoader(

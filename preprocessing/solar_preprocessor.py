@@ -41,7 +41,7 @@ class SolarPreprocessor:
 
         largest = max(contours, key=cv2.contourArea)
         (cx, cy), radius = cv2.minEnclosingCircle(largest)
-        return int(cx), int(cy), int(radius * 0.93)  # Shrink by 7% to completely eliminate solar limb edge artifacts
+        return int(cx), int(cy), int(radius * 1.0)  # Full 100% solar disk preserved up to the limb
 
     def create_disk_mask(self, shape: Tuple[int, int], cx: int, cy: int, radius: int) -> np.ndarray:
         """Create binary mask for the solar disk region."""
@@ -56,17 +56,16 @@ class SolarPreprocessor:
         """
         h, w = gray.shape
         y, x = np.ogrid[:h, :w]
-        r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2) / radius
+        r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2) / max(radius, 1)
         r = np.clip(r, 0, 1)
 
         # Limb darkening polynomial: I(r) = 1 - u*(1 - sqrt(1 - r^2))
-        # Using a simple quadratic approximation
         mu = np.sqrt(np.maximum(1 - r ** 2, 0))
         u = 0.6  # Limb darkening coefficient for H-alpha
         correction = 1.0 / (1.0 - u * (1.0 - mu) + 1e-8)
 
-        # Only apply within disk
-        disk_mask = r < 0.98
+        # Only apply within disk (100% full radius)
+        disk_mask = r <= 1.0
         corrected = gray.astype(np.float64)
         corrected[disk_mask] = corrected[disk_mask] * correction[disk_mask]
         corrected = np.clip(corrected, 0, 255).astype(np.uint8)

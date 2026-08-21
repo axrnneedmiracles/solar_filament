@@ -1,0 +1,1 @@
+{"epoch": 35, "total_epochs": 35, "phase": "Validating", "batch": 434, "total_batches": 434, "percent": 100.0, "running_loss": 0.2098, "best_val_dice": 0.7304, "best_epoch": 34, "elapsed_seconds": 1452.3, "eta_seconds": 0, "timestamp": 1787255755.678654}

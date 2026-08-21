@@ -1,0 +1,65 @@
+{
+  "total_validation_images": 231,
+  "images_with_limb_filaments": 1,
+  "total_gt_filament_pixels": 204139,
+  "gt_pixels_in_093_eroded_region": 0,
+  "gt_pixels_in_093_eroded_region_pct": 0.0,
+  "variants": {
+    "0.93": {
+      "radius_scale": 0.93,
+      "erosion_pct": 7.0,
+      "whole_disk": {
+        "dice": 0.6465041815762516,
+        "iou": 0.4975930086107399,
+        "precision": 0.6524280533816104,
+        "recall": 0.6867989656328851
+      },
+      "limb_region": {
+        "dice": 0.7973856205428111,
+        "iou": 0.6727272722126721,
+        "precision": 0.6999999994333332,
+        "recall": 0.928571427542517
+      }
+    },
+    "0.97": {
+      "radius_scale": 0.97,
+      "erosion_pct": 3.0,
+      "whole_disk": {
+        "dice": 0.6461483466338368,
+        "iou": 0.49770555382920917,
+        "precision": 0.6810316050194087,
+        "recall": 0.6597011747620959
+      },
+      "limb_region": {
+        "dice": 0.7529411760629758,
+        "iou": 0.6060606055348943,
+        "precision": 0.799999999075,
+        "recall": 0.7619047610147391
+      }
+    },
+    "1.0": {
+      "radius_scale": 1.0,
+      "erosion_pct": 0.0,
+      "whole_disk": {
+        "dice": 0.6441967928377647,
+        "iou": 0.49609155183517917,
+        "precision": 0.6927563199413771,
+        "recall": 0.6479238008478915
+      },
+      "limb_region": {
+        "dice": 0.8074866306018187,
+        "iou": 0.6893939387987833,
+        "precision": 0.7999999992,
+        "recall": 0.8452380942786282
+      }
+    }
+  },
+  "target_image_20140519195834Ch": {
+    "detected_093_filaments": 27,
+    "detected_093_pixels": 1320,
+    "detected_097_filaments": 24,
+    "detected_097_pixels": 1239,
+    "detected_100_filaments": 23,
+    "detected_100_pixels": 1170
+  }
+}

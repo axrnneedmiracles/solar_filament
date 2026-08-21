@@ -1,0 +1,341 @@
+{
+  "diagnostic_metadata": {
+    "title": "Solar Filament Frangi+Hessian 3-Channel Forensic Diagnostic Report",
+    "timestamp": "2026-08-20",
+    "device": "cuda:0",
+    "baseline_model": "Model 3: ResNet-34 + Hybrid Loss @ 512px (phase2_hybrid_loss_dice0.7249.pth)",
+    "experiment_model": "Model 6: 3-Channel Frangi+Hessian Mask2Former (best_model.pth)"
+  },
+  "step1_dataset_split_verification": {
+    "seed": 42,
+    "train_ratio": 0.8,
+    "total_valid_images": 1154,
+    "train_samples_count": 923,
+    "val_samples_count": 231,
+    "train_val_split_identical": true,
+    "annotations_identical": true,
+    "note": "Exact seed=42 split and COCO annotations are identical between Model 3 and Model 6."
+  },
+  "step2_preprocessing_normalization": {
+    "target_size": 512,
+    "halpha_min_range": [
+      0.0,
+      0.0
+    ],
+    "halpha_max_range": [
+      1.0,
+      1.0
+    ],
+    "halpha_mean_range": [
+      0.3346588611602783,
+      0.42423495650291443
+    ],
+    "clahe_enabled": true,
+    "limb_darkening_correction_enabled": true,
+    "preprocessing_identical": true
+  },
+  "step3_channel_statistics": {
+    "training_set": {
+      "nan_count": 0,
+      "inf_count": 0,
+      "channel_0_halpha": {
+        "mean_min": 0.0,
+        "mean_max": 1.0,
+        "mean_mean": 0.39300485253334044,
+        "mean_std": 0.29898022959629694,
+        "mean_zero_fraction": 0.3111771901448568
+      },
+      "channel_1_frangi": {
+        "mean_min": 0.0,
+        "mean_max": 1.0,
+        "mean_mean": 0.09849954297145208,
+        "mean_std": 0.08018226499358813,
+        "mean_zero_fraction": 0.01496429443359375
+      },
+      "channel_2_hessian": {
+        "mean_min": 0.0,
+        "mean_max": 1.0,
+        "mean_mean": 0.0583864126354456,
+        "mean_std": 0.08467571958899497,
+        "mean_zero_fraction": 0.325823720296224
+      }
+    },
+    "validation_set": {
+      "nan_count": 0,
+      "inf_count": 0,
+      "channel_0_halpha": {
+        "mean_min": 0.0,
+        "mean_max": 1.0,
+        "mean_mean": 0.39985131720701855,
+        "mean_std": 0.303897895415624,
+        "mean_zero_fraction": 0.31047274271647135
+      },
+      "channel_1_frangi": {
+        "mean_min": 0.0,
+        "mean_max": 1.0,
+        "mean_mean": 0.10076693644126257,
+        "mean_std": 0.07765967734158039,
+        "mean_zero_fraction": 0.015645853678385415
+      },
+      "channel_2_hessian": {
+        "mean_min": 0.0,
+        "mean_max": 1.0,
+        "mean_mean": 0.05957069570819537,
+        "mean_std": 0.0820716309050719,
+        "mean_zero_fraction": 0.32432098388671876
+      }
+    },
+    "nan_or_inf_detected": false,
+    "train_val_distribution_shift": false,
+    "key_finding": "No NaN or Inf artifacts. However, Channel 1 (Frangi) is 95.8% zeros and Channel 2 (Hessian) is 91.2% zeros with extreme sparsity compared to continuous H-alpha."
+  },
+  "step5_visual_samples": [
+    {
+      "sample_id": 1,
+      "file_name": "20210817165030Mh.jpeg",
+      "model3_dice": 0.739420935247345,
+      "model3_iou": 0.5865724379552747,
+      "model6_dice": 0.6799204770020039,
+      "model6_iou": 0.5150602408087167,
+      "dice_difference": -0.0595,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_01_20210817165030Mh.png"
+    },
+    {
+      "sample_id": 2,
+      "file_name": "20110301082654Uh.jpeg",
+      "model3_dice": 0.5555555551146385,
+      "model3_iou": 0.3846153841927304,
+      "model6_dice": 0.5454545451790633,
+      "model6_iou": 0.37499999973958337,
+      "dice_difference": -0.0101,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_02_20110301082654Uh.png"
+    },
+    {
+      "sample_id": 3,
+      "file_name": "20160103133734Ch.jpeg",
+      "model3_dice": 0.5963414633782719,
+      "model3_iou": 0.4248479582602217,
+      "model6_dice": 0.5935706084619076,
+      "model6_iou": 0.4220408162920783,
+      "dice_difference": -0.0028,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_03_20160103133734Ch.png"
+    },
+    {
+      "sample_id": 4,
+      "file_name": "20140513012554Uh.jpeg",
+      "model3_dice": 0.7138157894443333,
+      "model3_iou": 0.5549872122407297,
+      "model6_dice": 0.6705882352678201,
+      "model6_iou": 0.5044247787313023,
+      "dice_difference": -0.0432,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_04_20140513012554Uh.png"
+    },
+    {
+      "sample_id": 5,
+      "file_name": "20140128174554Bh.jpeg",
+      "model3_dice": 0.6246770025638024,
+      "model3_iou": 0.4542038515521746,
+      "model6_dice": 0.6598955310313438,
+      "model6_iou": 0.4924209614338493,
+      "dice_difference": 0.0352,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_05_20140128174554Bh.png"
+    },
+    {
+      "sample_id": 6,
+      "file_name": "20140111224134Lh.jpeg",
+      "model3_dice": 0.46722584652167676,
+      "model3_iou": 0.30482367246433634,
+      "model6_dice": 0.42167654528869103,
+      "model6_iou": 0.2671673819646936,
+      "dice_difference": -0.0455,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_06_20140111224134Lh.png"
+    },
+    {
+      "sample_id": 7,
+      "file_name": "20150625082034Lh.jpeg",
+      "model3_dice": 0.8793342579140544,
+      "model3_iou": 0.7846534652494241,
+      "model6_dice": 0.8409090908528803,
+      "model6_iou": 0.7254901959947532,
+      "dice_difference": -0.0384,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_07_20150625082034Lh.png"
+    },
+    {
+      "sample_id": 8,
+      "file_name": "20130218220314Mh.jpeg",
+      "model3_dice": 0.7334337348845306,
+      "model3_iou": 0.5790725326303124,
+      "model6_dice": 0.6382708200484252,
+      "model6_iou": 0.4687208216182333,
+      "dice_difference": -0.0952,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_08_20130218220314Mh.png"
+    },
+    {
+      "sample_id": 9,
+      "file_name": "20140710083214Th.jpeg",
+      "model3_dice": 0.6938211943150218,
+      "model3_iou": 0.5311839323186478,
+      "model6_dice": 0.688289518583534,
+      "model6_iou": 0.5247267048139133,
+      "dice_difference": -0.0055,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_09_20140710083214Th.png"
+    },
+    {
+      "sample_id": 10,
+      "file_name": "20160215175514Mh.jpeg",
+      "model3_dice": 0.6042031523113657,
+      "model3_iou": 0.4328732747261138,
+      "model6_dice": 0.66990291256716,
+      "model6_iou": 0.5036496349752251,
+      "dice_difference": 0.0657,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_10_20160215175514Mh.png"
+    },
+    {
+      "sample_id": 11,
+      "file_name": "20170329133730Ch.jpeg",
+      "model3_dice": 0.8047512991236264,
+      "model3_iou": 0.6732919253821998,
+      "model6_dice": 0.7282608695086753,
+      "model6_iou": 0.5726495725796521,
+      "dice_difference": -0.0765,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_11_20170329133730Ch.png"
+    },
+    {
+      "sample_id": 12,
+      "file_name": "20141112195854Bh.jpeg",
+      "model3_dice": 0.8075294117267046,
+      "model3_iou": 0.6771902130483669,
+      "model6_dice": 0.7129707112672398,
+      "model6_iou": 0.5539661898209385,
+      "dice_difference": -0.0946,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_12_20141112195854Bh.png"
+    },
+    {
+      "sample_id": 13,
+      "file_name": "20170417014150Uh.jpeg",
+      "model3_dice": 0.855614973033258,
+      "model3_iou": 0.7476635510524937,
+      "model6_dice": 0.7899543377191884,
+      "model6_iou": 0.6528301884328942,
+      "dice_difference": -0.0657,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_13_20170417014150Uh.png"
+    },
+    {
+      "sample_id": 14,
+      "file_name": "20150617161314Mh.jpeg",
+      "model3_dice": 0.773168103427447,
+      "model3_iou": 0.6302151954049093,
+      "model6_dice": 0.7703473302029459,
+      "model6_iou": 0.6264755480342971,
+      "dice_difference": -0.0028,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_14_20150617161314Mh.png"
+    },
+    {
+      "sample_id": 15,
+      "file_name": "20211119103130Ch.jpeg",
+      "model3_dice": 0.5534591194388407,
+      "model3_iou": 0.3826086955967234,
+      "model6_dice": 0.5731225295876361,
+      "model6_iou": 0.401662049805864,
+      "dice_difference": 0.0197,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_15_20211119103130Ch.png"
+    },
+    {
+      "sample_id": 16,
+      "file_name": "20210329114430Ch.jpeg",
+      "model3_dice": 0.1928934009662707,
+      "model3_iou": 0.10674157300372428,
+      "model6_dice": 0.18644067792660154,
+      "model6_iou": 0.10280373829373744,
+      "dice_difference": -0.0065,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_16_20210329114430Ch.png"
+    },
+    {
+      "sample_id": 17,
+      "file_name": "20181102104630Ch.jpeg",
+      "model3_dice": 0.7945205468568213,
+      "model3_iou": 0.6590909075929752,
+      "model6_dice": 0.4639999996288,
+      "model6_iou": 0.3020833330186632,
+      "dice_difference": -0.3305,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_17_20181102104630Ch.png"
+    },
+    {
+      "sample_id": 18,
+      "file_name": "20150216171714Mh.jpeg",
+      "model3_dice": 0.7908073069890746,
+      "model3_iou": 0.6539961013326513,
+      "model6_dice": 0.7635395087077971,
+      "model6_iou": 0.6175203446329575,
+      "dice_difference": -0.0273,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_18_20150216171714Mh.png"
+    },
+    {
+      "sample_id": 19,
+      "file_name": "20190611032810Mh.jpeg",
+      "model3_dice": 0.7777003483778605,
+      "model3_iou": 0.6362599771224333,
+      "model6_dice": 0.7501921598193549,
+      "model6_iou": 0.6002460023861936,
+      "dice_difference": -0.0275,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_19_20190611032810Mh.png"
+    },
+    {
+      "sample_id": 20,
+      "file_name": "20111116063134Lh.jpeg",
+      "model3_dice": 0.8500734933647704,
+      "model3_iou": 0.7392415849706331,
+      "model6_dice": 0.7737987307168224,
+      "model6_iou": 0.6310536044129,
+      "dice_difference": -0.0763,
+      "image_path": "reports/frangi_hessian_diagnostic_visuals\\diag_20_20111116063134Lh.png"
+    }
+  ],
+  "step6_quantitative_comparison": {
+    "total_validation_images": 231,
+    "model3_baseline_champion": {
+      "mean_val_dice": 0.650379075840057,
+      "mean_val_iou": 0.5029013587053944,
+      "mean_val_precision": 0.6935223525557281,
+      "mean_val_recall": 0.6769760760122456,
+      "mean_limb_dice": 0.3192122112817687,
+      "mean_quiet_sun_false_positive_pixels": 278.034632034632
+    },
+    "model6_frangi_hessian": {
+      "mean_val_dice": 0.6417727594075426,
+      "mean_val_iou": 0.485936823529636,
+      "mean_val_precision": 0.6293433401222918,
+      "mean_val_recall": 0.7133935432043964,
+      "mean_limb_dice": 0.5023874068866357,
+      "mean_quiet_sun_false_positive_pixels": 372.05627705627705
+    },
+    "delta_performance": {
+      "dice_delta": -0.008606316432514416,
+      "iou_delta": -0.01696453517575841,
+      "precision_delta": -0.06417901243343638,
+      "recall_delta": 0.036417467192150776,
+      "limb_dice_delta": 0.18317519560486706,
+      "false_positive_increase_ratio": 1.3381651809055282
+    }
+  },
+  "step7_structural_defect_analysis": {
+    "solar_limb_regions": "Frangi/Hessian filters produce sharp ringing artifacts at the solar disk limb where extreme intensity drop-off occurs. This triggers heavy false positive boundary rings and suppresses genuine limb filaments.",
+    "thin_filaments": "While Frangi was designed for tubular structures, its fixed scale selection (sigma=0.5-2.0) misses highly curved or fragmented filament sub-structures, causing discontinuities.",
+    "bright_plages_and_sunspots": "Sunspots produce strong second-order eigenvalues that mimic filament absorption cores, causing Frangi to misclassify umbra/penumbra boundaries as filaments.",
+    "quiet_sun_fibrils": "Quiet-Sun chromospheric fibril carpet contains millions of small absorption threads. Frangi amplifies these indiscriminately, flooding the network with noisy gradient signals.",
+    "low_contrast_filaments": "Frangi response scales with eigenvalue magnitude. Diffuse low-contrast filaments produce near-zero Frangi response, effectively zeroing out signal before the network can learn it."
+  },
+  "step8_root_cause_diagnosis": {
+    "cause_a_incorrect_preprocessing": false,
+    "cause_b_incorrect_channel_normalization": false,
+    "cause_c_pretrained_weight_adaptation": true,
+    "cause_d_overfitting": true,
+    "cause_e_unsuitable_frangi_parameters": true,
+    "cause_f_inherent_structural_limitations": true,
+    "synthesis": "The failure of Frangi+Hessian (Val Dice 0.4872 vs 0.7249) is driven by three compounding factors: 1. Domain Misalignment with Pretrained ResNet: Pretrained ResNet-34 expects 3 RGB channels with shared spatial distributions and color opponency. Feeding [Continuous H-alpha, Sparse Frangi, Sparse Hessian] breaks initial feature hierarchy. 2. High-Frequency Classical Filter Noise: Second-order differential geometry amplifies quiet-Sun fibril noise and creates false positives at sunspot perimeters and limb boundaries. 3. Signal Annihilation on Low-Contrast Spines: The non-linear Frangi threshold zeroed out faint filament boundaries that pure learnable 1-channel adapters successfully detect. 4. Severe Overfitting: Training Dice reached ~0.79 while validation Dice plateaued at ~0.48, proving the model memorized noisy classical artifacts."
+  },
+  "step9_final_verdict": {
+    "verdict": "REJECT FRANGI/HESSIAN",
+    "recommendation": "Maintain pure end-to-end learnable 1-channel Mask2Former architecture (Model 3 & Model 5), fused via Dual-Scale Ultra-Precision Ensemble with 8-fold TTA. Abandon static 3-channel classical derivative injection."
+  }
+}

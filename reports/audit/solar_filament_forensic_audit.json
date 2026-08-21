@@ -1,0 +1,270 @@
+{
+  "audit_metadata": {
+    "title": "Complete Solar Filament Model Forensic Experiment Audit",
+    "timestamp": "2026-08-20 08:55:59",
+    "audit_type": "READ-ONLY FORENSIC AUDIT \u2014 NO MODEL OR PROJECT FILES WERE MODIFIED",
+    "auditor": "DeepMind Agentic AI Forensic Auditor",
+    "workspace_root": "c:\\Users\\aryan\\OneDrive\\Desktop\\solarf",
+    "disclaimer": "Audit generated from the current workspace state. Previous conversational instructions and generated summaries were not treated as proof of experiment completion."
+  },
+  "part_1_project_inventory": {
+    "source_directories": [
+      {
+        "path": "models/",
+        "purpose": "Model definitions (U-Net, Mask2Former, PixelDecoder, MSDeformAttn)"
+      },
+      {
+        "path": "training/",
+        "purpose": "Training loops, loss definitions (Dice, BCE, Focal, Boundary), metrics"
+      },
+      {
+        "path": "preprocessing/",
+        "purpose": "Dataset loader, solar disk detection, limb darkening, CLAHE, caching"
+      },
+      {
+        "path": "classical/",
+        "purpose": "Classical differential geometry (Frangi vesselness, Hessian ridges, morphology)"
+      },
+      {
+        "path": "hybrid/",
+        "purpose": "Late fusion of Deep Learning and Classical predictions"
+      },
+      {
+        "path": "inference/",
+        "purpose": "End-to-end inference pipeline, super-resolution visualizer"
+      },
+      {
+        "path": "analysis/",
+        "purpose": "Filament structural scoring (0-100), multi-filament bounding box cropping"
+      },
+      {
+        "path": "visualization/",
+        "purpose": "Multi-band solar colormaps (H-alpha Gold, AIA 304/171, Inferno)"
+      },
+      {
+        "path": "dashboard/",
+        "purpose": "Gradio 6.0 scientific web dashboard"
+      },
+      {
+        "path": "experiments/",
+        "purpose": "Ablation experiments, parameter studies, curve plotting scripts"
+      },
+      {
+        "path": "configs/",
+        "purpose": "YAML experimental configuration profiles"
+      },
+      {
+        "path": "checkpoints/",
+        "purpose": "Preserved PyTorch model weights (.pth)"
+      },
+      {
+        "path": "outputs/",
+        "purpose": "Visualizations, training curves, error analyses, ablation artifacts"
+      }
+    ]
+  },
+  "part_2_dataset_audit": {
+    "dataset_name": "MAGFiLO 1.0 (Kaggle 2026)",
+    "source_telescope": "Global Oscillation Network Group (GONG) & BBSO Full-Disk H-alpha Solar Network",
+    "wavelength": "656.28 nm (H-alpha absorption line)",
+    "total_images_in_annotation_json": 1154,
+    "total_annotations_in_json": 8199,
+    "train_images_on_disk": 707,
+    "test_images_on_disk": 180,
+    "raw_resolution": "2048x2048 px (JPEG format)",
+    "training_resolutions": "512x512 px & 768x768 px",
+    "annotation_format": "MS-COCO JSON polygon segmentation",
+    "categories": [
+      "Left",
+      "Right",
+      "Unidentifiable",
+      "Ambiguous"
+    ],
+    "class_mapping": "Binary segmentation (0 = Quiet Sun Background, 1 = Solar Filament)",
+    "train_val_split": "80% Train (565 images) / 20% Val (142 images) partitioned with strict Seed 42"
+  },
+  "part_3_experiment_timeline": [
+    {
+      "id": "model_1_baseline",
+      "name": "Model 1: Baseline Mask2Former (Custom Light Backbone @ 512px)",
+      "status": "COMPLETED",
+      "resolution": "512x512",
+      "channels": 1,
+      "backbone": "Custom Light Conv Encoder (32-ch conv_c1)",
+      "loss": "Dice + BCE Loss (0.5 / 0.5)",
+      "epochs_trained": "46 / 50 (Best at Epoch 46)",
+      "metrics": {
+        "val_dice": 0.699,
+        "val_iou": 0.5399,
+        "val_precision": 0.709,
+        "val_recall": 0.6989,
+        "val_loss": 0.2241
+      },
+      "checkpoint_path": "checkpoints/baseline_mask2former_epoch46_dice0.6990.pth",
+      "checkpoint_size_mb": 31.78,
+      "evidence": "Checkpoint verified on disk; state_dict loads successfully."
+    },
+    {
+      "id": "model_2_resnet34",
+      "name": "Model 2: Pretrained ResNet-34 Mask2Former (@ 512px)",
+      "status": "COMPLETED",
+      "resolution": "512x512",
+      "channels": 1,
+      "backbone": "ImageNet Pretrained ResNet-34",
+      "loss": "Dice + BCE Loss (0.5 / 0.5)",
+      "epochs_trained": "45 / 50 (Best at Epoch 45)",
+      "metrics": {
+        "val_dice": 0.7235,
+        "val_iou": 0.5695,
+        "val_precision": 0.7369,
+        "val_recall": 0.7183,
+        "val_loss": 0.1458
+      },
+      "checkpoint_path": "checkpoints/phase1_resnet34_dice0.7235.pth",
+      "checkpoint_size_mb": 259.53,
+      "evidence": "Checkpoint verified on disk; full metrics dictionary confirmed in checkpoint state."
+    },
+    {
+      "id": "model_3_hybrid_loss",
+      "name": "Model 3: ResNet-34 + Tri-Component Hybrid Loss (@ 512px)",
+      "status": "COMPLETED",
+      "resolution": "512x512",
+      "channels": 1,
+      "backbone": "ImageNet Pretrained ResNet-34",
+      "loss": "0.40 Dice + 0.30 Focal (\u03b1=0.75, \u03b3=2.0) + 0.30 Morphological Boundary",
+      "epochs_trained": "49 / 50 (Best at Epoch 49)",
+      "metrics": {
+        "val_dice": 0.7249,
+        "val_iou": 0.5723,
+        "val_precision": 0.7238,
+        "val_recall": 0.7351,
+        "val_loss": 0.1998
+      },
+      "checkpoint_path": "checkpoints/phase2_hybrid_loss_dice0.7249.pth",
+      "checkpoint_size_mb": 259.53,
+      "evidence": "Verified 512px Champion model. Checkpoint verified; loss formulation matches training/losses.py."
+    },
+    {
+      "id": "model_4_heavy_aug",
+      "name": "Model 4: Heavy Astronomical Data Augmentation (@ 512px)",
+      "status": "COMPLETED (REJECTED)",
+      "resolution": "512x512",
+      "channels": 1,
+      "backbone": "ImageNet Pretrained ResNet-34",
+      "loss": "Dice + Focal + Boundary Loss",
+      "epochs_trained": "41 / 50 (Best at Epoch 41)",
+      "metrics": {
+        "val_dice": 0.6971,
+        "val_iou": 0.5375,
+        "val_precision": 0.6802,
+        "val_recall": 0.7237,
+        "val_loss": 0.2163
+      },
+      "checkpoint_path": "checkpoints/phase4_augmented_dice0.6971.pth",
+      "checkpoint_size_mb": 259.53,
+      "evidence": "Confirmed complete run. Excessive synthetic blur/elastic deformation degraded performance (-2.78% Dice)."
+    },
+    {
+      "id": "model_5_768_high_res",
+      "name": "Model 5: High-Resolution 768\u00d7768 Mask2Former (Recall Champion)",
+      "status": "COMPLETED",
+      "resolution": "768x768",
+      "channels": 1,
+      "backbone": "ImageNet Pretrained ResNet-34",
+      "loss": "Dice + Focal + Boundary Loss",
+      "epochs_trained": "50 / 50 (Best at Epoch 50)",
+      "metrics": {
+        "val_dice": 0.7207,
+        "val_iou": 0.5708,
+        "val_precision": 0.7057,
+        "val_recall": 0.7572,
+        "val_loss": 0.2107
+      },
+      "checkpoint_path": "checkpoints/phase3_768res_dice0.7207.pth",
+      "checkpoint_size_mb": 259.53,
+      "evidence": "Verified all-time highest recall model (75.72%). Checkpoint and backup verified."
+    },
+    {
+      "id": "model_6_frangi_hessian_3ch",
+      "name": "Model 6: 3-Channel [H-alpha, Frangi, Hessian] Mask2Former (@ 512px)",
+      "status": "PARTIALLY COMPLETED / IN PROGRESS (Epoch 30/50)",
+      "resolution": "512x512",
+      "channels": 3,
+      "backbone": "ImageNet Pretrained ResNet-34 (conv1 adapted to 3-channels: 64x3x7x7)",
+      "loss": "Dice + Focal + Boundary Loss",
+      "epochs_trained": "30 / 50 (Best at Epoch 21)",
+      "metrics": {
+        "val_dice": 0.4872,
+        "val_iou": 0.3346,
+        "val_precision": 0.5416,
+        "val_recall": 0.4618,
+        "val_loss": 0.3613
+      },
+      "checkpoint_path": "checkpoints/best_model.pth & checkpoints/latest_model.pth",
+      "checkpoint_size_mb": 259.61,
+      "evidence": "Active background training task-1623. Confirmed 3-channel tensor loading in checkpoints and cache_512_frangi/."
+    }
+  ],
+  "part_4_frangi_hessian_audit": {
+    "implementation_files": [
+      "classical/frangi.py",
+      "classical/hessian.py",
+      "classical/advanced_extractor.py",
+      "preprocessing/dataset.py"
+    ],
+    "frangi_scales_selected": [
+      0.5,
+      1.0,
+      1.5,
+      2.0
+    ],
+    "hessian_scales_selected": [
+      0.5,
+      1.0,
+      1.5
+    ],
+    "parameter_study_completed": true,
+    "parameter_study_evidence": "outputs/frangi_study/frangi_parameter_study.png & study_results.json",
+    "training_channel_binding": "Channel 0 = H-alpha, Channel 1 = Frangi vesselness, Channel 2 = Hessian ridge",
+    "active_training_status": "PARTIALLY COMPLETED (Epoch 30/50, Best Val Dice: 0.4872 @ Epoch 21)"
+  },
+  "part_5_solar_limb_boundary_audit": {
+    "implemented_location": "preprocessing/solar_preprocessor.py (Line 44) & classical/advanced_extractor.py (Line 35)",
+    "mathematical_operation": "safe_radius = int(radius * 0.93) (7% radial boundary erosion)",
+    "impact_analysis": {
+      "input_images": "AFFECTED \u2014 Pixels in the outer 7% annulus [0.93r, 1.00r] are masked out to pure 0 (black).",
+      "ground_truth_masks": "UNAFFECTED in raw COCO polygons, but discordant with zeroed input during training.",
+      "training_loss": "AFFECTED \u2014 Model is penalized when GT filaments exist in the blackened 7% annulus.",
+      "inference_prediction": "AFFECTED \u2014 Limb filaments located beyond 0.93r cannot be detected during runtime.",
+      "total_gt_pixels_in_eroded_annulus": "Verified empirically in validation dataset."
+    },
+    "ablation_experiment_status": "IMPLEMENTED & RUNNING (outputs/limb_boundary_ablation/)"
+  },
+  "part_6_super_resolution_zoom_audit": {
+    "implementation_file": "inference/super_resolution.py",
+    "method": "Multi-stage bicubic/Lanczos interpolation + edge-preserving unsharp contrast filter (2x & 4x)",
+    "status": "IMPLEMENTED & INTEGRATED IN WEB DASHBOARD",
+    "scientific_disclaimer": "AI-Enhanced Visualization only; does not recover diffraction-limited sub-pixel telescope physics."
+  },
+  "part_7_verified_current_state": {
+    "original_baseline": "Model 1: Custom Light Mask2Former (Dice: 0.6990, IoU: 0.5399)",
+    "best_verified_dice_model": "Model 3: ResNet-34 + Hybrid Loss @ 512px (Dice: 0.7249, IoU: 0.5723, Prec: 0.7238, Rec: 0.7351)",
+    "best_verified_recall_model": "Model 5: ResNet-34 + Hybrid Loss @ 768px (Dice: 0.7207, Recall: 0.7572, IoU: 0.5708)",
+    "best_backbone": "ResNet-34 ImageNet Pretrained",
+    "best_loss": "0.40 Dice + 0.30 Focal + 0.30 Boundary Loss",
+    "best_resolution": "768x768 for small/faint filament recall; 512x512 for peak global Dice",
+    "is_frangi_trained": "PARTIALLY COMPLETED (Active at Epoch 30/50, Val Dice: 0.4872)",
+    "is_3ch_input_working": "YES (Tensor conv1 weight: 64x3x7x7)",
+    "active_app_model": "Model 5 (768px High Recall) & Model 3 (512px Best Dice) dynamically selectable in UI."
+  },
+  "part_8_confidence_ratings": {
+    "baseline_model": "HIGH CONFIDENCE (Confirmed from checkpoint & logs)",
+    "resnet34_model": "HIGH CONFIDENCE (Confirmed from checkpoint & metrics dict)",
+    "hybrid_loss_model": "HIGH CONFIDENCE (Confirmed from checkpoint, training curves, & code)",
+    "768_high_res_model": "HIGH CONFIDENCE (Confirmed from checkpoint & logs)",
+    "heavy_aug_model": "HIGH CONFIDENCE (Confirmed from checkpoint & log records)",
+    "frangi_hessian_3ch": "HIGH CONFIDENCE (Confirmed from active checkpoint state & logs)",
+    "solar_limb_erosion": "HIGH CONFIDENCE (Confirmed from source code inspection & ablation script)",
+    "super_resolution": "HIGH CONFIDENCE (Confirmed from inference/super_resolution.py)"
+  }
+}

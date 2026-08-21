@@ -16,17 +16,17 @@ from classical.morphology import (
 
 
 def analyze_filaments(mask: np.ndarray, probability_map: np.ndarray = None,
-                       min_area: int = 50) -> List[Dict]:
+                       min_area: int = 20) -> List[Dict]:
     """
     Analyze all detected filaments in a segmentation mask.
 
     Args:
         mask: Binary segmentation mask
         probability_map: Probability map for confidence estimation
-        min_area: Minimum area to consider as a filament
+        min_area: Minimum area to consider as a filament (default: 20 px)
 
     Returns:
-        List of filament property dicts
+        List of filament property dicts sorted by area descending
     """
     labels, components = connected_components_analysis(mask, min_area=min_area)
 
@@ -37,11 +37,14 @@ def analyze_filaments(mask: np.ndarray, probability_map: np.ndarray = None,
 
         props = measure_filament_properties(mask, component_mask, probability_map)
         if props:
-            props['filament_id'] = len(filaments) + 1
             filaments.append(props)
 
-    # Sort by area (largest first)
+    # Sort by area descending (primary/largest filament first)
     filaments.sort(key=lambda x: x.get('area_px', 0), reverse=True)
+
+    # Stably assign 1-based filament IDs matching rank
+    for rank, f in enumerate(filaments, 1):
+        f['filament_id'] = rank
 
     return filaments
 

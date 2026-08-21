@@ -1,0 +1,30 @@
+{
+  "dataset_analysis": {
+    "total_gt_filament_pixels_in_val": 3263688,
+    "gt_pixels_beyond_093r": 0,
+    "gt_pixels_beyond_093r_percentage": 0.0,
+    "gt_pixels_in_limb_zone_080_093r": 78213,
+    "gt_pixels_in_limb_zone_080_093r_percentage": 2.396460691095399,
+    "gt_pixels_in_interior_under_080r": 3185475,
+    "gt_pixels_in_interior_under_080r_percentage": 97.60353930890153,
+    "val_images_with_limb_filaments_count": 59
+  },
+  "performance_comparison": {
+    "interior_filaments": {
+      "model3_dice": 0.6544916549142036,
+      "model5_dice": 0.6771746002927906
+    },
+    "limb_filaments_zone_080_100r": {
+      "model3_curr_093r_dice": 0.4576399050110073,
+      "model3_no_erosion_100r_dice": 0.42817628938814406,
+      "model5_curr_093r_dice": 0.4907345827912481,
+      "model5_no_erosion_100r_dice": 0.43413364195140636
+    },
+    "whole_disk": {
+      "model3_curr_093r_dice": 0.650379075840057,
+      "model3_no_erosion_100r_dice": 0.64018973607192,
+      "model5_curr_093r_dice": 0.6738518897933838,
+      "model5_no_erosion_100r_dice": 0.6526066998812141
+    }
+  }
+}

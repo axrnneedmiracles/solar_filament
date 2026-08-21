@@ -194,6 +194,7 @@ def train(config_path: str = None):
         train_ratio=config['data']['train_ratio'],
         seed=config['data']['seed'],
         pin_memory=device.type == 'cuda',
+        use_frangi_channels=config['data'].get('use_frangi_channels', False),
     )
 
     # Model
@@ -231,19 +232,38 @@ def train(config_path: str = None):
         print(f"Gradient Accumulation: {gradient_accumulation_steps} steps (Effective batch size = {config['training']['batch_size'] * gradient_accumulation_steps})")
 
     # Training state
+    start_epoch = 1
     best_val_dice = 0.0
     patience_counter = 0
     patience = config['training'].get('patience', 10)
     history = []
 
-    print(f"\nStarting training for {config['training']['epochs']} epochs...")
+    # Check for resume checkpoint
+    resume_path = resume_checkpoint or config['training'].get('resume_checkpoint', None)
+    if resume_path and os.path.exists(resume_path):
+        print(f"\n[*] Resuming training state from checkpoint: {resume_path}")
+        ckpt = torch.load(resume_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt['model_state_dict'])
+        if 'optimizer_state_dict' in ckpt:
+            optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        if 'scheduler_state_dict' in ckpt:
+            scheduler.load_state_dict(ckpt['scheduler_state_dict'])
+        if 'scaler_state_dict' in ckpt:
+            scaler.load_state_dict(ckpt['scaler_state_dict'])
+        start_epoch = ckpt.get('epoch', 0) + 1
+        best_val_dice = ckpt.get('best_val_dice', ckpt.get('val_dice', 0.0))
+        patience_counter = ckpt.get('patience_counter', 0)
+        history = ckpt.get('history', [])
+        print(f"    Resumed at Epoch {start_epoch}, Best Val Dice so far: {best_val_dice:.4f}\n")
+
+    print(f"\nStarting training for {config['training']['epochs']} epochs (Starting at Epoch {start_epoch})...")
     print(f"Train: {len(train_loader.dataset)} images, Val: {len(val_loader.dataset)} images")
     print(f"Batch size: {config['training']['batch_size']}")
     print()
 
     start_time = time.time()
 
-    for epoch in range(1, config['training']['epochs'] + 1):
+    for epoch in range(start_epoch, config['training']['epochs'] + 1):
         epoch_start = time.time()
 
         # Train
@@ -287,6 +307,11 @@ def train(config_path: str = None):
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'scaler_state_dict': scaler.state_dict(),
+                'best_val_dice': best_val_dice,
+                'patience_counter': patience_counter,
+                'history': history,
                 'val_dice': best_val_dice,
                 'val_iou': val_metrics['iou'],
                 'val_loss': val_metrics['loss'],
@@ -300,14 +325,18 @@ def train(config_path: str = None):
         else:
             patience_counter += 1
 
-        # Save latest
-        if epoch % 10 == 0 or epoch == config['training']['epochs']:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'config': config,
-            }, os.path.join(checkpoint_dir, 'latest_model.pth'))
+        # Always save full resume state every epoch
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'scaler_state_dict': scaler.state_dict(),
+            'best_val_dice': best_val_dice,
+            'patience_counter': patience_counter,
+            'history': history,
+            'config': config,
+        }, os.path.join(checkpoint_dir, 'latest_model.pth'))
 
         # Early stopping
         if patience_counter >= patience:
@@ -337,5 +366,10 @@ def train(config_path: str = None):
 
 
 if __name__ == '__main__':
-    config_path = sys.argv[1] if len(sys.argv) > 1 else None
-    train(config_path)
+    import argparse
+    parser = argparse.ArgumentParser(description="Solar Filament Segmentation Training")
+    parser.add_argument("config", nargs="?", default="configs/default_config.yaml", help="Path to config YAML")
+    parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume training from")
+    args = parser.parse_args()
+
+    train(args.config, resume_checkpoint=args.resume)

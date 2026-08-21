@@ -1,0 +1,46 @@
+{
+  "roc_auc": 0.8656,
+  "pr_auc": 0.7086,
+  "brier_score": 0.1371,
+  "precision": 0.6632,
+  "recall": 0.6368,
+  "f1_score": 0.6497,
+  "confusion_matrix": [
+    [
+      374,
+      65
+    ],
+    [
+      73,
+      128
+    ]
+  ],
+  "test_samples": 640,
+  "erupted_positives": 201,
+  "feature_importance_ranking": [
+    {
+      "feature": "magnetic_free_energy_proxy",
+      "importance_weight": 0.32
+    },
+    {
+      "feature": "dist_to_active_region_deg",
+      "importance_weight": 0.24
+    },
+    {
+      "feature": "magnetic_shear_deg",
+      "importance_weight": 0.18
+    },
+    {
+      "feature": "length_km",
+      "importance_weight": 0.11
+    },
+    {
+      "feature": "mean_contrast",
+      "importance_weight": 0.08
+    },
+    {
+      "feature": "heliographic_lat",
+      "importance_weight": 0.07
+    }
+  ]
+}

@@ -247,9 +247,32 @@ class Mask2FormerDecoderLayer(nn.Module):
         return queries
 
 
+class SubPixelBoundaryRefiner(nn.Module):
+    """
+    Sub-pixel boundary detail refinement module.
+    Combines high-resolution 1/1 stem mask features with query mask logits to predict
+    sharp residual boundary corrections for thin, faint chromospheric fibrils.
+    """
+    def __init__(self, hidden_dim: int = 128):
+        super().__init__()
+        self.refine = nn.Sequential(
+            nn.Conv2d(hidden_dim + 1, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.GELU(),
+            nn.Conv2d(64, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.GELU(),
+            nn.Conv2d(32, 1, kernel_size=1)
+        )
+
+    def forward(self, mask_feat: torch.Tensor, initial_logits: torch.Tensor) -> torch.Tensor:
+        residual = self.refine(torch.cat([mask_feat, initial_logits], dim=1))
+        return initial_logits + residual
+
+
 class Mask2Former(nn.Module):
     """
-    Complete Mask2Former architecture for Solar Filament Segmentation.
+    Complete Mask2Former architecture for Solar Filament Segmentation with Sub-Pixel Edge Refinement.
     """
     def __init__(
         self,
@@ -260,11 +283,13 @@ class Mask2Former(nn.Module):
         nheads: int = 8,
         backbone: str = 'resnet34',
         pretrained: bool = True,
+        use_boundary_refiner: bool = True,
     ):
         super().__init__()
         self.num_queries = num_queries
         self.hidden_dim = hidden_dim
         self.backbone_name = backbone
+        self.use_boundary_refiner = use_boundary_refiner
 
         # Select Pixel Decoder / Backbone
         if backbone.lower() in ('resnet34', 'resnet-34', 'resnet_34'):
@@ -288,13 +313,19 @@ class Mask2Former(nn.Module):
             nn.Linear(hidden_dim, hidden_dim),
         )
 
-        # Final unified segmentation head
+        # Unified segmentation head
         self.head = nn.Sequential(
             nn.Conv2d(hidden_dim, 64, 3, padding=1),
             nn.BatchNorm2d(64),
             nn.GELU(),
             nn.Conv2d(64, 1, 1),
         )
+
+        # Sub-pixel boundary refinement
+        if self.use_boundary_refiner:
+            self.boundary_refiner = SubPixelBoundaryRefiner(hidden_dim)
+        else:
+            self.boundary_refiner = None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B = x.shape[0]
@@ -324,12 +355,18 @@ class Mask2Former(nn.Module):
             mask_weights = (pred_masks.sigmoid() < 0.5).unsqueeze(1)
             attn_mask = torch.where(mask_weights.flatten(3), float('-1e4'), 0.0)
 
-        # 4. Final dense mask prediction using high-res mask features
+        # 4. Dense mask prediction using high-res mask features
         mask_embed = self.mask_embed(queries)
         combined_query = mask_embed.mean(dim=1).unsqueeze(-1).unsqueeze(-1)
 
         modulated_features = mask_features * combined_query
-        logits = self.head(modulated_features)
+        initial_logits = self.head(modulated_features)
+
+        # 5. Sub-pixel boundary detail refinement
+        if self.boundary_refiner is not None:
+            logits = self.boundary_refiner(mask_features, initial_logits)
+        else:
+            logits = initial_logits
 
         return logits
 
